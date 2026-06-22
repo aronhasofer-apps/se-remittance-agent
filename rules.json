@@ -1,27 +1,18 @@
 {
-  "version": "1.0.2",
-  "updated": "2026-06-21",
+  "version": "1.0.3",
+  "updated": "2026-06-22",
   "rules": [
     {
       "id": "ariba-skip",
-      "description": "Ariba network notifications - always skip",
+      "description": "Ariba portal remittance notifications - skip, NO label (user handles manually via portal)",
       "match": {
         "subject_contains": [
           "Notice of new Remittance Advice",
           "AribaNetworkAdmin"
         ]
       },
-      "action": "skip"
-    },
-    {
-      "id": "ariba-scheduled-skip",
-      "description": "Ariba scheduled payment notices - skip",
-      "match": {
-        "subject_contains": [
-          "Notice of new scheduled payment"
-        ]
-      },
-      "action": "skip"
+      "action": "skip",
+      "no_label": true
     },
     {
       "id": "bill-invoice-skip",
@@ -95,6 +86,19 @@
       "short_name": "extract_from_subject"
     },
     {
+      "id": "ariba-scheduled",
+      "description": "Ariba scheduled payment notification - extract from body",
+      "match": {
+        "subject_contains": [
+          "new scheduled payment",
+          "Notice of new scheduled payment"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "extract_from_body",
+      "notes": "Payor after 'by' in body. Amount under 'Amount due'. Invoice number in body."
+    },
+    {
       "id": "bill-delayed",
       "description": "BILL.com payment delayed/deposited - extract from body",
       "match": {
@@ -106,7 +110,7 @@
       },
       "action": "extract_body",
       "short_name": "extract_from_body",
-      "notes": "Payor name is company name ABOVE initiated a payment of in body. Supports CN- and RI- invoice numbers."
+      "notes": "Payor name is company ABOVE 'initiated a payment of' in body. Supports CN- and RI- invoices."
     },
     {
       "id": "merck-body",
@@ -132,16 +136,14 @@
     },
     {
       "id": "takeda-attachment",
-      "description": "Takeda direct PDF payment - save attachment",
+      "description": "Takeda payment advice - save PDF attachment",
       "match": {
         "subject_contains": [
-          "Takeda",
-          "SMB.vendor"
+          "Takeda"
         ]
       },
       "action": "save_attachment",
-      "short_name": "Takeda",
-      "notes": "Takeda also sends via Ariba - those are caught by ariba-skip rule separately"
+      "short_name": "Takeda"
     },
     {
       "id": "vertex-attachment",
