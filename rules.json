@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "updated": "2026-06-21",
   "rules": [
     {
@@ -56,7 +56,7 @@
       },
       "action": "save_attachment",
       "short_name": "GSK",
-      "notes": "Check currency - may be GBP. Total is largest bold number in summary section."
+      "notes": "Check currency - may be GBP."
     },
     {
       "id": "bms-attachment",
@@ -81,7 +81,7 @@
       },
       "action": "extract_body",
       "short_name": "extract_from_subject",
-      "notes": "Payor name after from in subject. Amount under Payment amount (after vendor credits) in body."
+      "notes": "Payor after from in subject. Amount under Payment amount in body."
     },
     {
       "id": "ramp-received",
@@ -92,8 +92,7 @@
         ]
       },
       "action": "extract_body",
-      "short_name": "extract_from_subject",
-      "notes": "Payor name after from in subject."
+      "short_name": "extract_from_subject"
     },
     {
       "id": "bill-delayed",
@@ -107,7 +106,7 @@
       },
       "action": "extract_body",
       "short_name": "extract_from_body",
-      "notes": "Payor name and amount both in email body"
+      "notes": "Payor name is company name ABOVE initiated a payment of in body. Supports CN- and RI- invoice numbers."
     },
     {
       "id": "merck-body",
@@ -118,8 +117,7 @@
         ]
       },
       "action": "extract_body",
-      "short_name": "Merck",
-      "notes": "Yellow HTML table in body. Payor Name field maps to Merck. Amount in Payment Amount row."
+      "short_name": "Merck"
     },
     {
       "id": "gilead-attachment",
@@ -130,23 +128,24 @@
         ]
       },
       "action": "save_attachment",
-      "short_name": "Gilead Sciences",
-      "notes": "Payer Name field in PDF. Total bottom-right of invoice table."
+      "short_name": "Gilead Sciences"
     },
     {
       "id": "takeda-attachment",
-      "description": "Takeda payment advice - save PDF attachment",
+      "description": "Takeda direct PDF payment - save attachment",
       "match": {
         "subject_contains": [
-          "Takeda"
+          "Takeda",
+          "SMB.vendor"
         ]
       },
       "action": "save_attachment",
-      "short_name": "Takeda"
+      "short_name": "Takeda",
+      "notes": "Takeda also sends via Ariba - those are caught by ariba-skip rule separately"
     },
     {
       "id": "vertex-attachment",
-      "description": "Vertex Pharmaceuticals remittance - save attachment (may be HTML)",
+      "description": "Vertex Pharmaceuticals remittance - save attachment",
       "match": {
         "subject_contains": [
           "Vertex Remittance",
@@ -155,7 +154,7 @@
       },
       "action": "save_attachment",
       "short_name": "Vertex",
-      "notes": "May be HTML file not PDF. Check From Payer section for payor name. AIS Operating Co is a separate entity."
+      "notes": "May be HTML. AIS Operating Co is separate entity."
     },
     {
       "id": "abbvie-attachment",
@@ -166,8 +165,7 @@
         ]
       },
       "action": "save_attachment",
-      "short_name": "AbbVie",
-      "notes": "Flag if subject contains MISMATCH"
+      "short_name": "AbbVie"
     },
     {
       "id": "terray-attachment",
@@ -201,7 +199,7 @@
       },
       "action": "save_attachment",
       "short_name": "extract_from_pdf",
-      "notes": "Catch-all for remittance advice PDFs. Payor extracted from PDF content."
+      "notes": "Catch-all for remittance advice PDFs."
     }
   ]
 }
