@@ -1,115 +1,207 @@
 {
-    "version": "1.0.0",
-    "updated": "2026-06-21",
-    "rules": [
-          {
-                  "id": "ariba-skip",
-                  "description": "Ariba network notifications - always skip",
-                  "match": {"subject_contains": ["Notice of new Remittance Advice", "AribaNetworkAdmin"]},
-                  "action": "skip"
-          },
-          {
-                  "id": "ariba-scheduled-skip",
-                  "description": "Ariba scheduled payment notices - skip",
-                  "match": {"subject_contains": ["Notice of new scheduled payment"]},
-                  "action": "skip"
-          },
-          {
-                  "id": "bill-invoice-skip",
-                  "description": "BILL.com invoice received notifications - skip",
-                  "match": {"subject_contains": ["received your invoice"]},
-                  "action": "skip"
-          },
-          {
-                  "id": "gsk-attachment",
-                  "description": "GSK Payment Advice Note - save PDF attachment",
-                  "match": {"subject_contains": ["Payment Advice Note", "GlaxoSmithKline", "GSK"]},
-                  "action": "save_attachment",
-                  "short_name": "GSK",
-                  "notes": "Check currency - may be GBP. Total is largest bold number in summary section."
-          },
-          {
-                  "id": "bms-attachment",
-                  "description": "Bristol Myers Squibb payment - save PDF attachment",
-                  "match": {"subject_contains": ["Bristol Myers Squibb", "Bristol-Myers"]},
-                  "action": "save_attachment",
-                  "short_name": "BMS",
-                  "notes": "Flag if subject contains MISMATCH or RITM"
-          },
-          {
-                  "id": "bms-flag",
-                  "description": "BMS mismatch/RITM - flag for review",
-                  "match": {"subject_contains": ["MISMATCH", "RITM", "PO AND VENDOR NAME"]},
-                  "action": "flag"
-          },
-          {
-                  "id": "ramp-body",
-                  "description": "Ramp payment notifications - extract from body",
-                  "match": {"subject_contains": ["Payment delivered", "Payment received", "payment is on the way", "will be deposited"]},
-                  "action": "extract_body",
-                  "short_name": "extract_from_subject",
-                  "notes": "Payor name is in the subject after 'from'. Amount is in body."
-          },
-          {
-                  "id": "bill-delayed",
-                  "description": "BILL.com payment delayed/deposited - extract from body",
-                  "match": {"subject_contains": ["payment is delayed", "will be deposited today", "Your payment from"]},
-                  "action": "extract_body",
-                  "short_name": "extract_from_body",
-                  "notes": "Payor name and amount both in email body"
-          },
-          {
-                  "id": "merck-body",
-                  "description": "Merck payment remittance - extract from body",
-                  "match": {"subject_contains": ["PAYMENT REMITTANCE DETAIL", "Merck"]},
-                  "action": "extract_body",
-                  "short_name": "Merck",
-                  "notes": "Yellow HTML table in body. Payor Name field maps to Merck. Amount in Payment Amount row."
-          },
-          {
-                  "id": "gilead-attachment",
-                  "description": "Gilead Sciences remittance - save PDF attachment",
-                  "match": {"subject_contains": ["Remittance Advice", "Gilead"]},
-                  "action": "save_attachment",
-                  "short_name": "Gilead Sciences",
-                  "notes": "Payer Name field in PDF. Total bottom-right of invoice table."
-          },
-          {
-                  "id": "takeda-attachment",
-                  "description": "Takeda payment advice - save PDF attachment",
-                  "match": {"subject_contains": ["Takeda", "SMB.vendor"]},
-                  "action": "save_attachment",
-                  "short_name": "Takeda"
-          },
-          {
-                  "id": "vertex-attachment",
-                  "description": "Vertex Pharmaceuticals remittance - save attachment (may be HTML)",
-                  "match": {"subject_contains": ["Vertex Remittance", "Vertex Pharmaceuticals"]},
-                  "action": "save_attachment",
-                  "short_name": "Vertex",
-                  "notes": "May be HTML file not PDF. Check From Payer section for payor name. AIS Operating Co is a separate entity."
-          },
-          {
-                  "id": "abbvie-attachment",
-                  "description": "AbbVie remittance - save PDF attachment",
-                  "match": {"subject_contains": ["AbbVie"]},
-                  "action": "save_attachment",
-                  "short_name": "AbbVie",
-                  "notes": "Flag if subject contains MISMATCH"
-          },
-          {
-                  "id": "terray-attachment",
-                  "description": "Terray Therapeutics - save PDF attachment",
-                  "match": {"subject_contains": ["Terray Therapeutics", "terraytx"]},
-                  "action": "save_attachment",
-                  "short_name": "Terray Therapeutics"
-          },
-          {
-                  "id": "neurocrine-body",
-                  "description": "Neurocrine via Coupa - extract from body",
-                  "match": {"subject_contains": ["Neurocrine"]},
-                  "action": "extract_body",
-                  "short_name": "Neurocrine"
-          }
-    ]
+  "version": "1.0.1",
+  "updated": "2026-06-21",
+  "rules": [
+    {
+      "id": "ariba-skip",
+      "description": "Ariba network notifications - always skip",
+      "match": {
+        "subject_contains": [
+          "Notice of new Remittance Advice",
+          "AribaNetworkAdmin"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "ariba-scheduled-skip",
+      "description": "Ariba scheduled payment notices - skip",
+      "match": {
+        "subject_contains": [
+          "Notice of new scheduled payment"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "bill-invoice-skip",
+      "description": "BILL.com invoice received notifications - skip",
+      "match": {
+        "subject_contains": [
+          "received your invoice"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "bms-flag",
+      "description": "BMS mismatch/RITM - flag for review",
+      "match": {
+        "subject_contains": [
+          "MISMATCH",
+          "RITM",
+          "PO AND VENDOR NAME"
+        ]
+      },
+      "action": "flag"
+    },
+    {
+      "id": "gsk-attachment",
+      "description": "GSK Payment Advice Note - save PDF attachment",
+      "match": {
+        "subject_contains": [
+          "Payment Advice Note",
+          "GlaxoSmithKline"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "GSK",
+      "notes": "Check currency - may be GBP. Total is largest bold number in summary section."
+    },
+    {
+      "id": "bms-attachment",
+      "description": "Bristol Myers Squibb payment - save PDF attachment",
+      "match": {
+        "subject_contains": [
+          "Bristol Myers Squibb",
+          "Bristol-Myers",
+          "BMS Payment"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "BMS"
+    },
+    {
+      "id": "ramp-delivered",
+      "description": "Ramp payment delivered - extract from body",
+      "match": {
+        "subject_contains": [
+          "Payment delivered for"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "extract_from_subject",
+      "notes": "Payor name after from in subject. Amount under Payment amount (after vendor credits) in body."
+    },
+    {
+      "id": "ramp-received",
+      "description": "Ramp payment received - extract from body",
+      "match": {
+        "subject_contains": [
+          "Payment received:"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "extract_from_subject",
+      "notes": "Payor name after from in subject."
+    },
+    {
+      "id": "bill-delayed",
+      "description": "BILL.com payment delayed/deposited - extract from body",
+      "match": {
+        "subject_contains": [
+          "payment is delayed",
+          "will be deposited today",
+          "Your payment from"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "extract_from_body",
+      "notes": "Payor name and amount both in email body"
+    },
+    {
+      "id": "merck-body",
+      "description": "Merck payment remittance - extract from body",
+      "match": {
+        "subject_contains": [
+          "PAYMENT REMITTANCE DETAIL"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "Merck",
+      "notes": "Yellow HTML table in body. Payor Name field maps to Merck. Amount in Payment Amount row."
+    },
+    {
+      "id": "gilead-attachment",
+      "description": "Gilead Sciences remittance - save PDF attachment",
+      "match": {
+        "subject_contains": [
+          "Gilead"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Gilead Sciences",
+      "notes": "Payer Name field in PDF. Total bottom-right of invoice table."
+    },
+    {
+      "id": "takeda-attachment",
+      "description": "Takeda payment advice - save PDF attachment",
+      "match": {
+        "subject_contains": [
+          "Takeda"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Takeda"
+    },
+    {
+      "id": "vertex-attachment",
+      "description": "Vertex Pharmaceuticals remittance - save attachment (may be HTML)",
+      "match": {
+        "subject_contains": [
+          "Vertex Remittance",
+          "Vertex Pharmaceuticals"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Vertex",
+      "notes": "May be HTML file not PDF. Check From Payer section for payor name. AIS Operating Co is a separate entity."
+    },
+    {
+      "id": "abbvie-attachment",
+      "description": "AbbVie remittance - save PDF attachment",
+      "match": {
+        "subject_contains": [
+          "AbbVie"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "AbbVie",
+      "notes": "Flag if subject contains MISMATCH"
+    },
+    {
+      "id": "terray-attachment",
+      "description": "Terray Therapeutics - save PDF attachment",
+      "match": {
+        "subject_contains": [
+          "Terray Therapeutics"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Terray Therapeutics"
+    },
+    {
+      "id": "neurocrine-body",
+      "description": "Neurocrine via Coupa - extract from body",
+      "match": {
+        "subject_contains": [
+          "Neurocrine"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "Neurocrine"
+    },
+    {
+      "id": "remittance-advice-attachment",
+      "description": "Generic Remittance Advice with PDF - save attachment",
+      "match": {
+        "subject_contains": [
+          "Remittance Advice"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "extract_from_pdf",
+      "notes": "Catch-all for remittance advice PDFs. Payor extracted from PDF content."
+    }
+  ]
 }
