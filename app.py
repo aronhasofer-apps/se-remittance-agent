@@ -724,11 +724,17 @@ function showUpdateBanner(info){document.getElementById('update-ver').textConten
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 init();
-// Poll every 10s — keeps queue count and stats live
+// Check for update 5s after load (background thread may not be done at init time)
+setTimeout(async()=>{
+  const s=await api('/api/state');
+  if(s.updateAvailable) showUpdateBanner(s.updateInfo);
+},5000);
+// Poll every 10s — keeps queue count, stats, and update banner live
 setInterval(async()=>{
   const s=await api('/api/state');
   updateStats(s);
   updateQueueBadge(s.queueCount);
+  if(s.updateAvailable) showUpdateBanner(s.updateInfo);
 },10000);
 // Refresh everything when tab becomes visible again
 document.addEventListener('visibilitychange',async()=>{
