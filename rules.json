@@ -1,5 +1,5 @@
 {
-  "version": "1.0.4",
+  "version": "1.0.5",
   "updated": "2026-06-23",
   "rules": [
     {
@@ -59,11 +59,13 @@
     },
     {
       "id": "arhelpdesk-skip",
-      "description": "ARHelpDesk internal emails - skip",
+      "description": "ARHelpDesk internal and forwarded inquiry emails - skip",
       "match": {
         "subject_contains": [
           "ARHelpDesk",
-          "FW: Re: Science Exchange"
+          "FW: Re: Science Exchange",
+          "Science Exchange Payment Inquiry",
+          "Payment Inquiry"
         ]
       },
       "action": "skip"
@@ -75,7 +77,6 @@
         "subject_contains": [
           "MISMATCH",
           "RITM",
-          "PO AND VENDOR NAME",
           "URGENT!!"
         ]
       },
@@ -109,16 +110,29 @@
       "short_name": "BMS"
     },
     {
+      "id": "takeda-attachment",
+      "description": "Takeda payment advice - save PDF attachment",
+      "match": {
+        "subject_contains": [
+          "Takeda payment advice",
+          "Takeda"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Takeda",
+      "notes": "Sender may be remittances@scienceexchange.com forwarded from Takeda. Subject contains Takeda payment advice."
+    },
+    {
       "id": "incyte-attachment",
       "description": "Incyte remittance details - save PDF attachment",
       "match": {
         "subject_contains": [
-          "Incyte Remittance"
+          "Incyte Remittance",
+          "Incyte"
         ]
       },
       "action": "save_attachment",
-      "short_name": "Incyte",
-      "notes": "Attachment contains remittance details. Sender: BATCHID_400@incyte.com"
+      "short_name": "Incyte"
     },
     {
       "id": "gilead-attachment",
@@ -130,17 +144,6 @@
       },
       "action": "save_attachment",
       "short_name": "Gilead Sciences"
-    },
-    {
-      "id": "takeda-attachment",
-      "description": "Takeda payment advice - save PDF attachment",
-      "match": {
-        "subject_contains": [
-          "Takeda"
-        ]
-      },
-      "action": "save_attachment",
-      "short_name": "Takeda"
     },
     {
       "id": "vertex-attachment",
@@ -182,12 +185,13 @@
       "match": {
         "subject_contains": [
           "Remittance Advice",
-          "Remittance Details"
+          "Remittance Details",
+          "Separate Remittance"
         ]
       },
       "action": "save_attachment",
       "short_name": "extract_from_pdf",
-      "notes": "Catch-all for remittance advice PDFs including Incyte, Rainwater, Regeneron."
+      "notes": "Catches Rainwater, Regeneron, Incyte and others."
     },
     {
       "id": "ramp-delivered",
@@ -198,8 +202,7 @@
         ]
       },
       "action": "extract_body",
-      "short_name": "extract_from_subject",
-      "notes": "Payor after from in subject."
+      "short_name": "extract_from_subject"
     },
     {
       "id": "ramp-received",
@@ -229,7 +232,7 @@
     },
     {
       "id": "bill-arriving",
-      "description": "BILL.com payment arriving/deposited - extract from body",
+      "description": "BILL.com payment arriving/deposited/delayed - extract from body",
       "match": {
         "subject_contains": [
           "sent you a payment arriving",
@@ -241,7 +244,7 @@
       },
       "action": "extract_body",
       "short_name": "extract_from_body",
-      "notes": "Subject has payor name. Body has amount and invoices. Format: [Company] initiated a payment of $X"
+      "notes": "Subject has payor name. Body has amount after 'initiated a payment of'."
     },
     {
       "id": "merck-body",
