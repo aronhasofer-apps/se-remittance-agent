@@ -208,7 +208,11 @@ def extract_track_a(body_text: str, subject: str, sender: str) -> Optional[dict]
 
     # ── BILL.com delayed / deposited ──────────────────────────────────────────
     if re.search(r"payment is delayed|will be deposited|payment from|initiated a payment", subject + " " + body_text[:300], re.I):
+        # Try "initiated a payment of" (bank holiday format)
         m = re.search(r"^\r?\n?([^\r\n]+?)\s+initiated a payment of", body_text, re.I | re.MULTILINE)
+        if not m:
+            # Try "Sent a payment of" (deposited today format)
+            m = re.search(r"^([^\r\n]+?)\s+[Ss]ent a payment of", body_text, re.I | re.MULTILINE)
         if not m:
             m2 = re.search(r"payment from\s+(.+?)(?:\s+will|\s+is|\s+has|$)", subject, re.I)
             if m2:
@@ -218,14 +222,17 @@ def extract_track_a(body_text: str, subject: str, sender: str) -> Optional[dict]
             payor = re.sub(r"^\*+|\*+$", "", m.group(1)).strip()
             result["payor"]      = payor
             result["payorShort"] = payor
-        m3 = re.search(r"initiated a payment of[\r\n\s]+\$?\s*([\d,]+\.?\d*)", body_text, re.I)
+        # Amount: try no-dollar newline first, then with dollar
+        m3 = re.search(r"(?:initiated|Sent) a payment of\s*[\r\n]+\s*([\d,]+\.\d{2})", body_text, re.I)
         if not m3:
-            m3 = re.search(r"initiated a payment of\s*[\r\n]+\s*([\d,]+\.\d{2})", body_text, re.I)
+            m3 = re.search(r"(?:initiated|Sent) a payment of\s*\$?\s*([\d,]+\.\d{2})", body_text, re.I)
         if not m3:
             m3 = re.search(r"\$\s*([\d,]+\.\d{2})", body_text)
         if m3:
             result["amount"] = m3.group(1).replace(",", "")
         m4 = re.search(r"Arriving:\s+([^\r\n]+)", body_text, re.I)
+        if not m4:
+            m4 = re.search(r"Deposit date[:\s]+([^\r\n]+)", body_text, re.I)
         if m4:
             result["paymentDate"] = m4.group(1).strip()
         if result["amount"] and result["payorShort"]:
@@ -264,10 +271,11 @@ def extract_track_a(body_text: str, subject: str, sender: str) -> Optional[dict]
             if m:
                 result["payor"]      = m.group(1).strip()
                 result["payorShort"] = m.group(1).strip()
-        m2 = re.search(r"(?:initiated|Sent) a payment of[\r\n\s]*\$?\s*([\d,]+\.?\d*)", body_text, re.I)
+        # Amount: try no-dollar newline format first (e.g. "Sent a payment of\n243524.95")
+        # then dollar sign format, then generic fallback
+        m2 = re.search(r"(?:initiated|Sent) a payment of\s*[\r\n]+\s*([\d,]+\.\d{2})", body_text, re.I)
         if not m2:
-            # Also try: amount on next line after "of" with no dollar sign
-            m2 = re.search(r"(?:initiated|Sent) a payment of\s*[\r\n]+\s*([\d,]+\.\d{2})", body_text, re.I)
+            m2 = re.search(r"(?:initiated|Sent) a payment of\s*\$?\s*([\d,]+\.\d{2})", body_text, re.I)
         if not m2:
             m2 = re.search(r"\$\s*([\d,]+\.\d{2})", body_text)
         if m2:
