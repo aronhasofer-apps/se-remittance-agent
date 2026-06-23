@@ -1,4 +1,4 @@
 {
-  "version": "2.2.3",
-  "notes": "Fix update banner timing"
+  "version": "2.2.4",
+  "notes": "Fix auto-update check"
 }
