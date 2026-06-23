@@ -1,0 +1,41 @@
+name: Build SE Remittance Agent
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '*.py'
+      - 'version.json'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pyinstaller reportlab pillow pdfplumber google-auth google-auth-oauthlib google-api-python-client
+
+      - name: Get version
+        id: ver
+        shell: bash
+        run: echo "VERSION=$(python -c \"import json; print(json.load(open('version.json'))['version'])\")" >> $GITHUB_OUTPUT
+
+      - name: Build exe
+        run: python -m PyInstaller --onefile --noconsole --name "SE Remittance Agent" --hidden-import=pdfplumber --hidden-import=reportlab --hidden-import=PIL --hidden-import=engine --hidden-import=history --hidden-import=settings --hidden-import=gmail_client --hidden-import=updater --hidden-import=google.auth --hidden-import=google.auth.transport.requests --hidden-import=google_auth_oauthlib.flow --hidden-import=googleapiclient.discovery --hidden-import=googleapiclient.errors app.py
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.VERSION }}
+          name: SE Remittance Agent v${{ steps.ver.outputs.VERSION }}
+          files: dist/SE Remittance Agent.exe
+          body: Automated build
+          make_latest: "true"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
