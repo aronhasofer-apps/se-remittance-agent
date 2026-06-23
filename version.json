@@ -1,4 +1,4 @@
 {
   "version": "2.2.2",
-  "notes": "Fix GSK/BMS/Merck/BILL extraction"
+  "notes": "BILL deposited format fix, hint_payor, sender map fixes"
 }
