@@ -817,6 +817,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok":True})
         if p=="/api/update-check":
             info=check_update()
+            # Write debug info to file
+            try:
+                with open(os.path.join(BASE_DIR,"update_debug.txt"),"w") as f:
+                    f.write(f"APP_VERSION={APP_VERSION}\ninfo={info}\n")
+            except Exception:
+                pass
             return self._json({"available":info is not None,"info":info})
         self._json({"error":"not found"},404)
 
