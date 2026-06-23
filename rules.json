@@ -1,10 +1,10 @@
 {
-  "version": "1.0.3",
-  "updated": "2026-06-22",
+  "version": "1.0.4",
+  "updated": "2026-06-23",
   "rules": [
     {
       "id": "ariba-skip",
-      "description": "Ariba portal remittance notifications - skip, NO label (user handles manually via portal)",
+      "description": "Ariba portal remittance notifications - skip, NO label",
       "match": {
         "subject_contains": [
           "Notice of new Remittance Advice",
@@ -16,10 +16,54 @@
     },
     {
       "id": "bill-invoice-skip",
-      "description": "BILL.com invoice received notifications - skip",
+      "description": "BILL.com invoice received/created notifications - skip",
       "match": {
         "subject_contains": [
-          "received your invoice"
+          "received your invoice",
+          "created a new bill"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "gsk-statement-skip",
+      "description": "GSK supplier statement (not a remittance) - skip",
+      "match": {
+        "subject_contains": [
+          "Supplier Statement"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "amgen-skip",
+      "description": "Amgen invoice status notification - skip",
+      "match": {
+        "subject_contains": [
+          "Amgen P2P",
+          "invoices we have entered"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "takeda-rejection-skip",
+      "description": "Takeda invoice rejection - skip",
+      "match": {
+        "subject_contains": [
+          "cannot be processed",
+          "will be resubmit"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "arhelpdesk-skip",
+      "description": "ARHelpDesk internal emails - skip",
+      "match": {
+        "subject_contains": [
+          "ARHelpDesk",
+          "FW: Re: Science Exchange"
         ]
       },
       "action": "skip"
@@ -31,7 +75,8 @@
         "subject_contains": [
           "MISMATCH",
           "RITM",
-          "PO AND VENDOR NAME"
+          "PO AND VENDOR NAME",
+          "URGENT!!"
         ]
       },
       "action": "flag"
@@ -56,72 +101,24 @@
         "subject_contains": [
           "Bristol Myers Squibb",
           "Bristol-Myers",
-          "BMS Payment"
+          "BMS Payment",
+          "Payment Notification"
         ]
       },
       "action": "save_attachment",
       "short_name": "BMS"
     },
     {
-      "id": "ramp-delivered",
-      "description": "Ramp payment delivered - extract from body",
+      "id": "incyte-attachment",
+      "description": "Incyte remittance details - save PDF attachment",
       "match": {
         "subject_contains": [
-          "Payment delivered for"
+          "Incyte Remittance"
         ]
       },
-      "action": "extract_body",
-      "short_name": "extract_from_subject",
-      "notes": "Payor after from in subject. Amount under Payment amount in body."
-    },
-    {
-      "id": "ramp-received",
-      "description": "Ramp payment received - extract from body",
-      "match": {
-        "subject_contains": [
-          "Payment received:"
-        ]
-      },
-      "action": "extract_body",
-      "short_name": "extract_from_subject"
-    },
-    {
-      "id": "ariba-scheduled",
-      "description": "Ariba scheduled payment notification - extract from body",
-      "match": {
-        "subject_contains": [
-          "new scheduled payment",
-          "Notice of new scheduled payment"
-        ]
-      },
-      "action": "extract_body",
-      "short_name": "extract_from_body",
-      "notes": "Payor after 'by' in body. Amount under 'Amount due'. Invoice number in body."
-    },
-    {
-      "id": "bill-delayed",
-      "description": "BILL.com payment delayed/deposited - extract from body",
-      "match": {
-        "subject_contains": [
-          "payment is delayed",
-          "will be deposited today",
-          "Your payment from"
-        ]
-      },
-      "action": "extract_body",
-      "short_name": "extract_from_body",
-      "notes": "Payor name is company ABOVE 'initiated a payment of' in body. Supports CN- and RI- invoices."
-    },
-    {
-      "id": "merck-body",
-      "description": "Merck payment remittance - extract from body",
-      "match": {
-        "subject_contains": [
-          "PAYMENT REMITTANCE DETAIL"
-        ]
-      },
-      "action": "extract_body",
-      "short_name": "Merck"
+      "action": "save_attachment",
+      "short_name": "Incyte",
+      "notes": "Attachment contains remittance details. Sender: BATCHID_400@incyte.com"
     },
     {
       "id": "gilead-attachment",
@@ -155,8 +152,7 @@
         ]
       },
       "action": "save_attachment",
-      "short_name": "Vertex",
-      "notes": "May be HTML. AIS Operating Co is separate entity."
+      "short_name": "Vertex"
     },
     {
       "id": "abbvie-attachment",
@@ -181,6 +177,97 @@
       "short_name": "Terray Therapeutics"
     },
     {
+      "id": "remittance-advice-attachment",
+      "description": "Generic Remittance Advice with PDF - save attachment",
+      "match": {
+        "subject_contains": [
+          "Remittance Advice",
+          "Remittance Details"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "extract_from_pdf",
+      "notes": "Catch-all for remittance advice PDFs including Incyte, Rainwater, Regeneron."
+    },
+    {
+      "id": "ramp-delivered",
+      "description": "Ramp payment delivered - extract from body",
+      "match": {
+        "subject_contains": [
+          "Payment delivered for"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "extract_from_subject",
+      "notes": "Payor after from in subject."
+    },
+    {
+      "id": "ramp-received",
+      "description": "Ramp payment received/on the way - extract from body",
+      "match": {
+        "subject_contains": [
+          "Payment received:",
+          "is on the way",
+          "sent payment for"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "extract_from_subject",
+      "notes": "Payor in subject. Invoice in subject or body."
+    },
+    {
+      "id": "ariba-scheduled",
+      "description": "Ariba scheduled payment - extract from body",
+      "match": {
+        "subject_contains": [
+          "new scheduled payment",
+          "Notice of new scheduled payment"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "extract_from_body"
+    },
+    {
+      "id": "bill-arriving",
+      "description": "BILL.com payment arriving/deposited - extract from body",
+      "match": {
+        "subject_contains": [
+          "sent you a payment arriving",
+          "will be deposited today",
+          "payment is delayed",
+          "Your payment from",
+          "Sent a payment of"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "extract_from_body",
+      "notes": "Subject has payor name. Body has amount and invoices. Format: [Company] initiated a payment of $X"
+    },
+    {
+      "id": "merck-body",
+      "description": "Merck payment remittance - extract from body",
+      "match": {
+        "subject_contains": [
+          "PAYMENT REMITTANCE DETAIL"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "Merck"
+    },
+    {
+      "id": "coupa-body",
+      "description": "Coupa payment notification - extract from body",
+      "match": {
+        "subject_contains": [
+          "has sent you a",
+          "Coupa"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "extract_from_body",
+      "notes": "Recursion and other Coupa payors. Amount and payor in body."
+    },
+    {
       "id": "neurocrine-body",
       "description": "Neurocrine via Coupa - extract from body",
       "match": {
@@ -190,18 +277,6 @@
       },
       "action": "extract_body",
       "short_name": "Neurocrine"
-    },
-    {
-      "id": "remittance-advice-attachment",
-      "description": "Generic Remittance Advice with PDF - save attachment",
-      "match": {
-        "subject_contains": [
-          "Remittance Advice"
-        ]
-      },
-      "action": "save_attachment",
-      "short_name": "extract_from_pdf",
-      "notes": "Catch-all for remittance advice PDFs."
     }
   ]
 }
