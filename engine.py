@@ -18,8 +18,13 @@ AMOUNT_MAX = 500_000.0
 SENDER_MAP = {
     "erppayables@gilead.com":        ("Gilead Sciences", "B"),
     "noreply-erp@gsk.com":           ("GSK",             "B"),
+    "noreply-erp via remittances":   ("GSK",             "B"),
+    "noreply via remittances":        ("GSK",             "B"),
+    "batch job via remittances":      ("GSK",             "B"),
     "bio.finance":                   ("GSK",             "B"),
+    "haleon":                        ("Haleon",          "B"),
     "paymentremittances@merck.com":  ("Merck",           "A"),
+    "paymentremittances via":        ("Merck",           "A"),
     "apat@bms.com":                  ("BMS",             "B"),
     "efss.front-office@bms.com":     ("BMS",             "B"),
     "apat via remittances":          ("BMS",             "B"),
@@ -28,6 +33,8 @@ SENDER_MAP = {
     "rachel.chung@terraytx.com":     ("Terray Therapeutics", "B"),
     "abbviecdo@abbvie.com":          ("AbbVie",          "B"),
     "communications@ramp.com":       ("Ramp",            "A"),
+    "batchid_400@incyte.com":        ("Incyte",          "B"),
+    "incyte sap batch":              ("Incyte",          "B"),
 }
 
 BODY_PAYOR_MAP = {
@@ -77,23 +84,32 @@ def is_complete(data: dict) -> tuple[bool, str]:
 
 # ── Smart process: try attachment → try body → flag ──────────────────────────
 
-def smart_extract(email: dict, pdf_bytes: bytes | None, body_text: str) -> tuple[dict | None, bytes | None, str]:
+def smart_extract(email: dict, pdf_bytes: bytes | None, body_text: str, hint_payor: str = "") -> tuple[dict | None, bytes | None, str]:
     """
     Try every available source to get complete payment data.
+    hint_payor: short name from rule (e.g. "GSK", "BMS") — used when extraction
+                finds amount+invoices but not payor name.
     Returns (data, pdf_bytes_to_save, fail_reason)
-    - If pdf_bytes_to_save is not None, save those bytes directly
-    - If pdf_bytes_to_save is None but data is not None, generate PDF from data
-    - If data is None, flag with fail_reason
     """
     sender  = email.get("sender", "")
     subject = email.get("subject", "")
 
+    def _apply_hint(data):
+        """Apply hint_payor if payor is missing or a placeholder."""
+        if hint_payor and hint_payor not in ("extract_from_subject", "extract_from_body", "extract_from_pdf", ""):
+            payor = (data.get("payorShort") or data.get("payor") or "").strip()
+            if not payor or payor in ("Unknown", "extract_from_subject", "extract_from_body", "extract_from_pdf"):
+                data["payor"]      = hint_payor
+                data["payorShort"] = hint_payor
+        return data
+
     # ── Try attachment first if available ─────────────────────────────────────
     if pdf_bytes:
         data = extract_track_b(pdf_bytes, sender)
-        # Supplement missing invoices from body
         if data and not data.get("invoices"):
             data["invoices"] = extract_invoices(body_text + " " + subject)
+        if data:
+            data = _apply_hint(data)
         ok, reason = is_complete(data)
         if ok:
             return data, pdf_bytes, ""
@@ -101,17 +117,19 @@ def smart_extract(email: dict, pdf_bytes: bytes | None, body_text: str) -> tuple
         body_data = extract_track_a(body_text, subject, sender)
         if body_data and not body_data.get("invoices"):
             body_data["invoices"] = extract_invoices(body_text + " " + subject)
+        if body_data:
+            body_data = _apply_hint(body_data)
         ok2, reason2 = is_complete(body_data)
         if ok2:
-            # Body worked — generate PDF from body data (no attachment bytes)
             return body_data, None, ""
-        # Both failed — use best reason
         return None, None, reason if reason else reason2
 
     # ── No attachment — try body ───────────────────────────────────────────────
     data = extract_track_a(body_text, subject, sender)
     if data and not data.get("invoices"):
         data["invoices"] = extract_invoices(body_text + " " + subject)
+    if data:
+        data = _apply_hint(data)
     ok, reason = is_complete(data)
     if ok:
         return data, None, ""
@@ -154,7 +172,7 @@ def extract_track_a(body_text: str, subject: str, sender: str) -> Optional[dict]
         return result
 
     # ── Merck ──────────────────────────────────────────────────────────────────
-    if "paymentremittances@merck.com" in sender_l:
+    if "paymentremittances@merck.com" in sender_l or "paymentremittances" in sender_l or re.search(r"PAYMENT REMITTANCE DETAIL", subject, re.I):
         m = re.search(r"Payor Name[:\s]+([^\n<]+)", body_text, re.I)
         if m:
             raw = m.group(1).strip()
