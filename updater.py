@@ -1,7 +1,7 @@
 """
-SE Remittance Agent — GitHub Updater v2
+SE Remittance Agent — GitHub Updater v3
 - Rules: pulled from raw GitHub on every launch
-- App updates: checks GitHub Releases API for new exe
+- App updates: checks raw version.json (no rate limiting), downloads from Releases
 """
 
 import json
@@ -12,13 +12,14 @@ import urllib.error
 GITHUB_REPO   = "aronhasofer-apps/se-remittance-agent"
 GITHUB_RAW    = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main"
 RULES_URL     = f"{GITHUB_RAW}/rules.json"
-RELEASES_API  = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-APP_VERSION   = "2.2.0"
+VERSION_URL   = f"{GITHUB_RAW}/version.json"
+DOWNLOAD_BASE = f"https://github.com/{GITHUB_REPO}/releases/download"
+APP_VERSION   = "2.2.1"
 
 
 def fetch_url(url: str, timeout: int = 8) -> dict | None:
     try:
-        req = urllib.request.Request(url, headers={"Accept": "application/vnd.github.v3+json"})
+        req = urllib.request.Request(url, headers={"User-Agent": "SE-Remittance-Agent/2.2"})
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read())
     except Exception:
@@ -41,31 +42,22 @@ def sync_rules(base_dir: str) -> dict:
 
 def check_update() -> dict | None:
     """
-    Check GitHub Releases for a newer version.
-    Returns release info dict (with download_url) or None.
+    Check raw version.json for a newer version (no API rate limiting).
+    Returns update info dict or None if already up to date.
     """
-    release = fetch_url(RELEASES_API)
-    if not release:
+    remote = fetch_url(VERSION_URL)
+    if not remote:
         return None
 
-    tag = release.get("tag_name", "").lstrip("v")
+    tag = remote.get("version", "").strip()
     if not tag or tag == APP_VERSION:
-        return None
-
-    # Find the exe asset
-    assets = release.get("assets", [])
-    exe_asset = next(
-        (a for a in assets if a.get("name", "").endswith(".exe")),
-        None
-    )
-    if not exe_asset:
         return None
 
     return {
         "version":      tag,
-        "download_url": exe_asset["browser_download_url"],
-        "notes":        release.get("body", ""),
-        "tag":          release.get("tag_name", ""),
+        "download_url": f"{DOWNLOAD_BASE}/v{tag}/SE.Remittance.Agent.exe",
+        "notes":        remote.get("notes", ""),
+        "tag":          f"v{tag}",
     }
 
 
