@@ -220,6 +220,8 @@ def extract_track_a(body_text: str, subject: str, sender: str) -> Optional[dict]
             result["payorShort"] = payor
         m3 = re.search(r"initiated a payment of[\r\n\s]+\$?\s*([\d,]+\.?\d*)", body_text, re.I)
         if not m3:
+            m3 = re.search(r"initiated a payment of\s*[\r\n]+\s*([\d,]+\.\d{2})", body_text, re.I)
+        if not m3:
             m3 = re.search(r"\$\s*([\d,]+\.\d{2})", body_text)
         if m3:
             result["amount"] = m3.group(1).replace(",", "")
@@ -263,6 +265,9 @@ def extract_track_a(body_text: str, subject: str, sender: str) -> Optional[dict]
                 result["payor"]      = m.group(1).strip()
                 result["payorShort"] = m.group(1).strip()
         m2 = re.search(r"(?:initiated|Sent) a payment of[\r\n\s]*\$?\s*([\d,]+\.?\d*)", body_text, re.I)
+        if not m2:
+            # Also try: amount on next line after "of" with no dollar sign
+            m2 = re.search(r"(?:initiated|Sent) a payment of\s*[\r\n]+\s*([\d,]+\.\d{2})", body_text, re.I)
         if not m2:
             m2 = re.search(r"\$\s*([\d,]+\.\d{2})", body_text)
         if m2:
