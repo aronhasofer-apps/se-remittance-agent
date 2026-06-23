@@ -1,4 +1,4 @@
 {
-  "version": "2.2.2",
-  "notes": "BILL deposited format fix, hint_payor, sender map fixes"
+  "version": "2.2.3",
+  "notes": "Fix update banner timing"
 }
