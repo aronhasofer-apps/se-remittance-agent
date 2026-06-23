@@ -118,7 +118,7 @@ def process_email(email: dict, override_action: str = None) -> dict:
             _log(f"  → Attachment download failed, trying body")
 
     # Smart extract: tries attachment first, falls back to body
-    data, bytes_to_save, fail_reason = smart_extract(email, pdf_bytes, body)
+    data, bytes_to_save, fail_reason = smart_extract(email, pdf_bytes, body, short_name)
 
     if not data:
         _log(f"  → Flagged: {fail_reason}")
