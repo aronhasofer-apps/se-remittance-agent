@@ -1,4 +1,4 @@
 {
-  "version": "2.2.1",
-  "notes": "Auto-build enabled"
+  "version": "2.2.2",
+  "notes": "Fix GSK/BMS/Merck/BILL extraction"
 }
