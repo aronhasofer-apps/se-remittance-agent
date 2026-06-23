@@ -23,8 +23,12 @@ jobs:
 
       - name: Get version
         id: ver
-        shell: bash
-        run: echo "VERSION=$(python -c \"import json; print(json.load(open('version.json'))['version'])\")" >> $GITHUB_OUTPUT
+        run: |
+          import json, os
+          v = json.load(open('version.json'))['version']
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'VERSION={v}\n')
+        shell: python
 
       - name: Build exe
         run: python -m PyInstaller --onefile --noconsole --name "SE Remittance Agent" --hidden-import=pdfplumber --hidden-import=reportlab --hidden-import=PIL --hidden-import=engine --hidden-import=history --hidden-import=settings --hidden-import=gmail_client --hidden-import=updater --hidden-import=google.auth --hidden-import=google.auth.transport.requests --hidden-import=google_auth_oauthlib.flow --hidden-import=googleapiclient.discovery --hidden-import=googleapiclient.errors app.py
