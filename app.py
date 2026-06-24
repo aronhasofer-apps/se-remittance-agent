@@ -919,9 +919,13 @@ def _do_update():
         new_exe = current + ".new"
         _update_status["status"] = f"Downloading v{info['version']}..."
         _log(f"Downloading v{info['version']} from GitHub...")
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
         req = urllib.request.Request(info["download_url"], headers={"User-Agent": "SE-Remittance-Agent"})
         total = 0
-        with urllib.request.urlopen(req) as r:
+        with urllib.request.urlopen(req, context=ctx) as r:
             size = int(r.headers.get("Content-Length", 0))
             with open(new_exe, "wb") as f:
                 while True:
