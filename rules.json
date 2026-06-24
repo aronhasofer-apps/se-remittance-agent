@@ -1,5 +1,5 @@
 {
-  "version": "1.0.5",
+  "version": "1.0.6",
   "updated": "2026-06-23",
   "rules": [
     {
@@ -27,7 +27,7 @@
     },
     {
       "id": "gsk-statement-skip",
-      "description": "GSK supplier statement (not a remittance) - skip",
+      "description": "GSK supplier statement - skip",
       "match": {
         "subject_contains": [
           "Supplier Statement"
@@ -59,7 +59,7 @@
     },
     {
       "id": "arhelpdesk-skip",
-      "description": "ARHelpDesk internal and forwarded inquiry emails - skip",
+      "description": "ARHelpDesk internal emails - skip",
       "match": {
         "subject_contains": [
           "ARHelpDesk",
@@ -84,7 +84,7 @@
     },
     {
       "id": "gsk-attachment",
-      "description": "GSK Payment Advice Note - save PDF attachment",
+      "description": "GSK/Haleon Payment Advice Note - save PDF attachment",
       "match": {
         "subject_contains": [
           "Payment Advice Note",
@@ -93,7 +93,19 @@
       },
       "action": "save_attachment",
       "short_name": "GSK",
-      "notes": "Check currency - may be GBP."
+      "notes": "Sender is forwarded via remittances@. Body identifies GSK or Haleon. Check currency."
+    },
+    {
+      "id": "amgen-attachment",
+      "description": "Amgen Remittance Advice - save PDF attachment",
+      "match": {
+        "snippet_contains": [
+          "Amgen Remittance Advice",
+          "Please find enclosed Amgen"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Amgen"
     },
     {
       "id": "bms-attachment",
@@ -119,8 +131,7 @@
         ]
       },
       "action": "save_attachment",
-      "short_name": "Takeda",
-      "notes": "Sender may be remittances@scienceexchange.com forwarded from Takeda. Subject contains Takeda payment advice."
+      "short_name": "Takeda"
     },
     {
       "id": "incyte-attachment",
@@ -190,8 +201,7 @@
         ]
       },
       "action": "save_attachment",
-      "short_name": "extract_from_pdf",
-      "notes": "Catches Rainwater, Regeneron, Incyte and others."
+      "short_name": "extract_from_pdf"
     },
     {
       "id": "ramp-delivered",
@@ -215,8 +225,7 @@
         ]
       },
       "action": "extract_body",
-      "short_name": "extract_from_subject",
-      "notes": "Payor in subject. Invoice in subject or body."
+      "short_name": "extract_from_subject"
     },
     {
       "id": "ariba-scheduled",
@@ -243,19 +252,19 @@
         ]
       },
       "action": "extract_body",
-      "short_name": "extract_from_body",
-      "notes": "Subject has payor name. Body has amount after 'initiated a payment of'."
+      "short_name": "extract_from_body"
     },
     {
       "id": "merck-body",
-      "description": "Merck payment remittance - extract from body",
+      "description": "Merck/MSD payment remittance - extract from body",
       "match": {
         "subject_contains": [
           "PAYMENT REMITTANCE DETAIL"
         ]
       },
       "action": "extract_body",
-      "short_name": "Merck"
+      "short_name": "Merck",
+      "notes": "HTML-only body. Payor Name field has payor. Amount in USD format."
     },
     {
       "id": "coupa-body",
@@ -267,8 +276,7 @@
         ]
       },
       "action": "extract_body",
-      "short_name": "extract_from_body",
-      "notes": "Recursion and other Coupa payors. Amount and payor in body."
+      "short_name": "extract_from_body"
     },
     {
       "id": "neurocrine-body",
