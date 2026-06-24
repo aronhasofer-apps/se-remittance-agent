@@ -307,6 +307,27 @@ def extract_track_a(body_text: str, subject: str, sender: str) -> Optional[dict]
             result["confidence"] = "high"
         return result
 
+    # ── Generic remittance body (Regeneron and similar) ──────────────────────
+    # Catches emails with "From Payer", "Payment Amount", RI- invoices in body
+    if re.search(r"From Payer|Payment Amount|Payment Remittance|Remittance Detail", body_text, re.I):
+        m = re.search(r"From Payer\s*[\r\n]+\s*([^\r\n]+)", body_text, re.I)
+        if m and "SCIENCE EXCHANGE" not in m.group(1).upper():
+            result["payor"]      = m.group(1).strip()
+            result["payorShort"] = m.group(1).strip()
+        m2 = re.search(r"Payment Amount\s*[\r\n]+\s*([\d,]+\.\d{2})", body_text, re.I)
+        if not m2:
+            m2 = re.search(r"Payment Amount[:\s]+([\d,]+\.\d{2})", body_text, re.I)
+        if not m2:
+            m2 = re.search(r"\$\s*([\d,]+\.\d{2})", body_text)
+        if m2:
+            result["amount"] = m2.group(1).replace(",", "")
+        m3 = re.search(r"Payment Date\s*[\r\n]+\s*([^\r\n]+)", body_text, re.I)
+        if m3:
+            result["paymentDate"] = m3.group(1).strip()
+        if result["amount"] and result["payorShort"]:
+            result["confidence"] = "high"
+            return result
+
     # ── Generic fallback ──────────────────────────────────────────────────────
     m = re.search(r"\$\s*([\d,]+\.?\d*)", body_text + " " + subject)
     if m:
