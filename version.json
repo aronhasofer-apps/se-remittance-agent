@@ -1,4 +1,4 @@
 {
-  "version": "2.2.8",
-  "notes": "Fix Moonlight/Boulevard/Regeneron extraction"
+  "version": "2.2.9",
+  "notes": "Fix BILL deposited/arriving inline format, Regeneron, skip SVB"
 }
