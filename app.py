@@ -322,8 +322,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </div>
 <div id="update-banner">
   <span>🔄 Update available — <strong id="update-ver"></strong></span>
-  <button onclick="triggerUpdate()">Update &amp; Restart</button>
-  <button onclick="document.getElementById('update-banner').style.display='none'" style="background:transparent;color:var(--muted);border:1px solid var(--border);margin-left:0">Dismiss</button>
+  <span id="update-status" style="color:var(--muted);font-size:12px;display:none"></span>
+  <button id="update-btn" onclick="triggerUpdate()">Update &amp; Restart</button>
+  <button id="update-dismiss" onclick="document.getElementById('update-banner').style.display='none'" style="background:transparent;color:var(--muted);border:1px solid var(--border);margin-left:0">Dismiss</button>
 </div>
 
 <!-- DASHBOARD -->
@@ -715,7 +716,34 @@ async function refreshRules(){
 }
 async function reauth(){await api('/api/reauth','POST');setStatus('Re-auth triggered — check browser.');}
 async function checkUpdate(){const r=await api('/api/update-check');if(r.available)showUpdateBanner(r.info);else alert('You are on the latest version.');}
-async function triggerUpdate(){await api('/api/update','POST');alert('Downloading update… app will restart.');}
+async function triggerUpdate(){
+  const btn=document.getElementById('update-btn');
+  const status=document.getElementById('update-status');
+  const dismiss=document.getElementById('update-dismiss');
+  btn.disabled=true; btn.textContent='Starting...';
+  dismiss.style.display='none';
+  status.style.display='inline'; status.textContent='Connecting...';
+  await api('/api/update','POST');
+  // Poll for progress
+  const poll=setInterval(async()=>{
+    const r=await api('/api/update-status');
+    status.textContent=r.status||'Downloading...';
+    btn.textContent=r.status||'Downloading...';
+    if(r.done){
+      clearInterval(poll);
+      if(r.error){
+        status.textContent='Update failed: '+r.error;
+        btn.textContent='Update & Restart'; btn.disabled=false;
+        dismiss.style.display='inline';
+      } else {
+        status.textContent='✅ Ready — close and reopen the app';
+        btn.textContent='✅ Close App Now';
+        btn.disabled=false;
+        btn.onclick=()=>api('/api/quit','POST');
+      }
+    }
+  },1000);
+}
 function openStaging(){fetch('/api/open-staging');}
 function setStatus(msg){document.getElementById('status-text').textContent=msg;}
 function showProgress(on){document.getElementById('progress-wrap').classList.toggle('visible',on);if(on)setProgressPct(null);}
@@ -817,13 +845,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok":True})
         if p=="/api/update-check":
             info=check_update()
-            # Write debug info to file
-            try:
-                with open(os.path.join(BASE_DIR,"update_debug.txt"),"w") as f:
-                    f.write(f"APP_VERSION={APP_VERSION}\ninfo={info}\n")
-            except Exception:
-                pass
             return self._json({"available":info is not None,"info":info})
+        if p=="/api/update-status":
+            return self._json(_update_status)
         self._json({"error":"not found"},404)
 
     def do_POST(self):
@@ -875,33 +899,60 @@ class Handler(BaseHTTPRequestHandler):
         if p=="/api/update":
             threading.Thread(target=_do_update,daemon=True).start()
             return self._json({"ok":True})
+        if p=="/api/quit":
+            threading.Thread(target=lambda:(time.sleep(0.5),sys.exit(0)),daemon=True).start()
+            return self._json({"ok":True})
         self._json({"error":"not found"},404)
 
 
+_update_status = {"status": "", "done": False, "error": ""}
+
 def _do_update():
+    global _update_status
+    _update_status = {"status": "Connecting...", "done": False, "error": ""}
     try:
-        info=check_update()
-        if not info or not info.get("download_url"): return
-        current=sys.executable if getattr(sys,"frozen",False) else __file__
-        new_exe=current+".new"
-        _log(f"Downloading v{info['version']}...")
-        # Stream download with no timeout (large file)
-        req=urllib.request.Request(info["download_url"],headers={"User-Agent":"SE-Remittance-Agent"})
+        info = check_update()
+        if not info or not info.get("download_url"):
+            _update_status = {"status": "", "done": True, "error": "No update found"}
+            return
+        current = sys.executable if getattr(sys, "frozen", False) else __file__
+        new_exe = current + ".new"
+        _update_status["status"] = f"Downloading v{info['version']}..."
+        _log(f"Downloading v{info['version']} from GitHub...")
+        req = urllib.request.Request(info["download_url"], headers={"User-Agent": "SE-Remittance-Agent"})
+        total = 0
         with urllib.request.urlopen(req) as r:
-            with open(new_exe,"wb") as f:
+            size = int(r.headers.get("Content-Length", 0))
+            with open(new_exe, "wb") as f:
                 while True:
-                    chunk=r.read(65536)
+                    chunk = r.read(65536)
                     if not chunk: break
                     f.write(chunk)
-        _log(f"Download complete — restarting...")
-        bat=os.path.join(BASE_DIR,"_update.bat")
-        with open(bat,"w") as f:
-            f.write(f'@echo off\ntimeout /t 2 /nobreak>nul\nmove /y "{new_exe}" "{current}"\nstart "" "{current}"\ndel "%~f0"\n')
+                    total += len(chunk)
+                    if size:
+                        pct = int(total * 100 / size)
+                        _update_status["status"] = f"Downloading v{info['version']}... {pct}%"
+        _log(f"Download complete ({total//1024}KB) — ready to restart")
+        _update_status["status"] = f"✅ Downloaded v{info['version']} — close and reopen to apply"
+        # Write update bat — runs AFTER app exits
+        bat = os.path.join(BASE_DIR, "_update.bat")
+        with open(bat, "w") as f:
+            # Wait for the original process to exit, then swap
+            f.write(
+                f'@echo off\n'
+                f':wait\n'
+                f'tasklist /fi "pid eq {os.getpid()}" 2>nul | find "{os.getpid()}" >nul\n'
+                f'if not errorlevel 1 (timeout /t 1 /nobreak>nul & goto wait)\n'
+                f'move /y "{new_exe}" "{current}"\n'
+                f'start "" "{current}"\n'
+                f'del "%~f0"\n'
+            )
         import subprocess
-        subprocess.Popen(["cmd","/c",bat],creationflags=subprocess.CREATE_NO_WINDOW)
-        time.sleep(1); sys.exit(0)
+        subprocess.Popen(["cmd", "/c", bat], creationflags=subprocess.CREATE_NO_WINDOW)
+        _update_status["done"] = True
     except Exception as e:
         _log(f"Update failed: {e}")
+        _update_status = {"status": "", "done": True, "error": str(e)}
 
 
 def main():
