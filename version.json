@@ -1,4 +1,4 @@
 {
-  "version": "2.2.9",
-  "notes": "Fix BILL deposited/arriving inline format, Regeneron, skip SVB"
+  "version": "2.3.0",
+  "notes": "Update progress display, reliable restart, extraction fixes"
 }
