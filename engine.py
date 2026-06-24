@@ -105,7 +105,7 @@ def smart_extract(email: dict, pdf_bytes: bytes | None, body_text: str, hint_pay
 
     # ── Try attachment first if available ─────────────────────────────────────
     if pdf_bytes:
-        data = extract_track_b(pdf_bytes, sender)
+        data = extract_track_b(pdf_bytes, sender, hint_payor)
         if data and not data.get("invoices"):
             data["invoices"] = extract_invoices(body_text + " " + subject)
         if data:
@@ -177,13 +177,21 @@ def extract_track_a(body_text: str, subject: str, sender: str) -> Optional[dict]
         if m:
             raw = m.group(1).strip()
             result["payor"]      = raw
-            result["payorShort"] = _map_body_payor(raw)
-        m = re.search(r"Payment Amount[:\s]+\$?([\d,]+\.?\d*)", body_text, re.I)
-        if m:
-            result["amount"] = m.group(1).replace(",", "")
-        m = re.search(r"Payment Date[:\s]+([\d/\-]+)", body_text, re.I)
-        if m:
-            result["paymentDate"] = m.group(1).strip()
+            result["payorShort"] = _map_body_payor(raw) or "Merck"
+        # Amount: "32,300.00 USD" or "$32,300.00" or "Payment Amount: $X"
+        m2 = re.search(r"Payment Amount[:\s]+\$?([\d,]+\.?\d*)", body_text, re.I)
+        if not m2:
+            m2 = re.search(r"([\d,]+\.\d{2})\s*USD", body_text, re.I)
+        if not m2:
+            m2 = re.search(r"\$\s*([\d,]+\.\d{2})", body_text)
+        if m2:
+            result["amount"] = m2.group(1).replace(",", "")
+        m3 = re.search(r"(?:Payment Date|Remitted Date|ValueDate)[:\s]+([\d/\-A-Z]+)", body_text, re.I)
+        if m3:
+            result["paymentDate"] = m3.group(1).strip()
+        if not result["payor"]:
+            result["payor"]      = "Merck"
+            result["payorShort"] = "Merck"
         if result["amount"] and result["payorShort"]:
             result["confidence"] = "high"
         return result
@@ -323,7 +331,7 @@ def extract_ariba_meta(body_text: str) -> dict:
 
 # ── Track B extraction (PDF bytes via pdfplumber) ─────────────────────────────
 
-def extract_track_b(pdf_bytes: bytes, sender: str) -> Optional[dict]:
+def extract_track_b(pdf_bytes: bytes, sender: str, hint_payor: str = "") -> Optional[dict]:
     try:
         import pdfplumber, io
         text = ""
@@ -333,7 +341,8 @@ def extract_track_b(pdf_bytes: bytes, sender: str) -> Optional[dict]:
     except Exception:
         return None
 
-    sender_l = sender.lower()
+    sender_l   = sender.lower()
+    hint_lower = hint_payor.lower()
     result = {
         "payor": "", "payorShort": "", "amount": "",
         "currency": "USD", "invoices": [], "paymentDate": "",
@@ -347,14 +356,28 @@ def extract_track_b(pdf_bytes: bytes, sender: str) -> Optional[dict]:
     elif "€" in text or "EUR" in text:
         result["currency"] = "EUR"
 
+    # Map sender to payor
     for key, (short, _) in SENDER_MAP.items():
         if key in sender_l:
             result["payorShort"] = short
             result["payor"]      = short
             break
 
-    if "erppayables@gilead.com" in sender_l:
-        m = re.search(r"Payer Name[:\s]+([^\n]+)", text, re.I)
+    # Apply hint_payor if sender map didn't identify payor
+    if hint_payor and hint_payor not in ("extract_from_subject","extract_from_body","extract_from_pdf",""):
+        if not result["payorShort"]:
+            result["payorShort"] = hint_payor
+            result["payor"]      = hint_payor
+
+    # Determine which extraction logic to use based on payor (sender OR hint)
+    is_gsk     = "gsk.com" in sender_l or "bio.finance" in sender_l or hint_lower in ("gsk","haleon")
+    is_bms     = "bms.com" in sender_l or "apat" in sender_l or hint_lower == "bms"
+    is_gilead  = "erppayables@gilead.com" in sender_l or hint_lower == "gilead sciences"
+    is_takeda  = "smb.vendor.query" in sender_l or hint_lower == "takeda"
+    is_vertex  = "vrtx.com" in sender_l or hint_lower == "vertex"
+    is_incyte  = "batchid_400@incyte.com" in sender_l or hint_lower == "incyte"
+
+    if is_gilead:
         if m:
             result["payor"] = m.group(1).strip()
         amounts = re.findall(r"[\$£]?\s*([\d,]+\.\d{2})", text)
@@ -364,7 +387,7 @@ def extract_track_b(pdf_bytes: bytes, sender: str) -> Optional[dict]:
         if m:
             result["paymentDate"] = m.group(1)
 
-    elif "gsk.com" in sender_l or "bio.finance" in sender_l:
+    elif is_gsk:
         amounts = re.findall(r"[\$£]?\s*([\d,]+\.\d{2})", text)
         if amounts:
             try:
@@ -372,7 +395,7 @@ def extract_track_b(pdf_bytes: bytes, sender: str) -> Optional[dict]:
             except Exception:
                 pass
 
-    elif "bms.com" in sender_l:
+    elif is_bms:
         amounts = re.findall(r"[\$£]?\s*([\d,]+\.\d{2})", text)
         if amounts:
             try:
@@ -380,7 +403,7 @@ def extract_track_b(pdf_bytes: bytes, sender: str) -> Optional[dict]:
             except Exception:
                 pass
 
-    elif "smb.vendor.query" in sender_l:
+    elif is_takeda:
         m = re.search(r"Total[:\s]+[\$£]?\s*([\d,]+\.\d{2})", text, re.I)
         if m:
             result["amount"] = m.group(1).replace(",", "")
@@ -389,7 +412,7 @@ def extract_track_b(pdf_bytes: bytes, sender: str) -> Optional[dict]:
             if amounts:
                 result["amount"] = amounts[-1].replace(",", "")
 
-    elif "vrtx.com" in sender_l:
+    elif is_vertex:
         m = re.search(r"From Payer[:\s]+([^\n]+)", text, re.I)
         if m:
             raw = m.group(1).strip()
