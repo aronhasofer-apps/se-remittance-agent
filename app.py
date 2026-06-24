@@ -736,10 +736,14 @@ async function triggerUpdate(){
         btn.textContent='Update & Restart'; btn.disabled=false;
         dismiss.style.display='inline';
       } else {
-        status.textContent='✅ Ready — close and reopen the app';
+        status.textContent='✅ Downloaded — click to close and apply update';
         btn.textContent='✅ Close App Now';
         btn.disabled=false;
-        btn.onclick=()=>api('/api/quit','POST');
+        btn.onclick=async()=>{
+          btn.textContent='Closing...'; btn.disabled=true;
+          try{ await api('/api/quit','POST'); }catch(e){}
+          setTimeout(()=>{ window.close(); document.body.innerHTML='<div style="padding:40px;font-family:sans-serif;color:#fff;background:#0f0f0f;height:100vh">✅ Update applied. Reopen SE Remittance Agent.</div>'; },300);
+        };
       }
     }
   },1000);
@@ -900,7 +904,10 @@ class Handler(BaseHTTPRequestHandler):
             threading.Thread(target=_do_update,daemon=True).start()
             return self._json({"ok":True})
         if p=="/api/quit":
-            threading.Thread(target=lambda:(time.sleep(0.5),sys.exit(0)),daemon=True).start()
+            def _quit():
+                time.sleep(0.3)
+                sys.exit(0)
+            threading.Thread(target=_quit, daemon=True).start()
             return self._json({"ok":True})
         self._json({"error":"not found"},404)
 
