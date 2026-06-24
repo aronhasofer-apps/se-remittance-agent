@@ -19,8 +19,12 @@ APP_VERSION   = "2.2.1"
 
 def fetch_url(url: str, timeout: int = 8) -> dict | None:
     try:
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode    = ssl.CERT_NONE
         req = urllib.request.Request(url, headers={"User-Agent": "SE-Remittance-Agent/2.2"})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
+        with urllib.request.urlopen(req, context=ctx, timeout=timeout) as r:
             return json.loads(r.read())
     except Exception:
         return None
