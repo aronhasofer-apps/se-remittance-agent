@@ -1,4 +1,4 @@
 {
-  "version": "2.2.5",
-  "notes": "Fix auto-update download"
+  "version": "2.2.6",
+  "notes": "Fix GSK/Merck/Amgen extraction"
 }
