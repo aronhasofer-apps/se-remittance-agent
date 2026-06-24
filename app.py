@@ -741,8 +741,12 @@ async function triggerUpdate(){
         btn.disabled=false;
         btn.onclick=async()=>{
           btn.textContent='Closing...'; btn.disabled=true;
+          status.textContent='Closing app and applying update...';
           try{ await api('/api/quit','POST'); }catch(e){}
-          setTimeout(()=>{ window.close(); document.body.innerHTML='<div style="padding:40px;font-family:sans-serif;color:#fff;background:#0f0f0f;height:100vh">✅ Update applied. Reopen SE Remittance Agent.</div>'; },300);
+          // App is closing — show message
+          setTimeout(()=>{
+            document.body.innerHTML='<div style="padding:60px;font-family:Arial,sans-serif;color:#fff;background:#0f0f0f;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px"><div style="font-size:48px">✅</div><div style="font-size:20px;font-weight:600">Update applied</div><div style="color:#888">SE Remittance Agent is restarting...<br>This tab will go blank — that\'s normal.<br>The app will reopen automatically.</div></div>';
+          },400);
         };
       }
     }
@@ -905,8 +909,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok":True})
         if p=="/api/quit":
             def _quit():
-                time.sleep(0.3)
-                sys.exit(0)
+                time.sleep(0.5)
+                os._exit(0)
             threading.Thread(target=_quit, daemon=True).start()
             return self._json({"ok":True})
         self._json({"error":"not found"},404)
