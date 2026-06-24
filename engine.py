@@ -56,10 +56,10 @@ def extract_invoices(text: str) -> list:
 
 # ── Validation — all three required ──────────────────────────────────────────
 
-def is_complete(data: dict) -> tuple[bool, str]:
+def is_complete(data: dict, allow_no_invoices: bool = False) -> tuple[bool, str]:
     """
     Returns (True, "") if amount + payor + invoices all present.
-    Returns (False, reason) if anything missing.
+    allow_no_invoices: if True, save even without invoice numbers (PDF-only case).
     """
     if not data:
         return False, "no data extracted"
@@ -77,7 +77,7 @@ def is_complete(data: dict) -> tuple[bool, str]:
         return False, "amount not parseable"
     if not payor or payor in ("Unknown", "extract_from_subject", "extract_from_body", "extract_from_pdf"):
         return False, "payor not identified"
-    if not invoices:
+    if not invoices and not allow_no_invoices:
         return False, "no invoice numbers found (RI- or CN-) — contact payor billing team"
     return True, ""
 
@@ -96,11 +96,18 @@ def smart_extract(email: dict, pdf_bytes: bytes | None, body_text: str, hint_pay
 
     def _apply_hint(data):
         """Apply hint_payor if payor is missing or a placeholder."""
-        if hint_payor and hint_payor not in ("extract_from_subject", "extract_from_body", "extract_from_pdf", ""):
+        if hint_payor and hint_payor not in ("extract_from_subject","extract_from_body","extract_from_pdf",""):
             payor = (data.get("payorShort") or data.get("payor") or "").strip()
             if not payor or payor in ("Unknown", "extract_from_subject", "extract_from_body", "extract_from_pdf"):
                 data["payor"]      = hint_payor
                 data["payorShort"] = hint_payor
+        # Try subject-based payor as last resort: "X from Y" or "Remittance Advice from Y"
+        payor = (data.get("payorShort") or data.get("payor") or "").strip()
+        if not payor or payor in ("Unknown", "extract_from_subject", "extract_from_body", "extract_from_pdf"):
+            m = re.search(r"(?:Remittance Advice|Advice|Payment) from\s+(.+?)(?:\s*$)", subject, re.I)
+            if m:
+                data["payor"]      = m.group(1).strip()
+                data["payorShort"] = m.group(1).strip()
         return data
 
     # ── Try attachment first if available ─────────────────────────────────────
@@ -110,7 +117,8 @@ def smart_extract(email: dict, pdf_bytes: bytes | None, body_text: str, hint_pay
             data["invoices"] = extract_invoices(body_text + " " + subject)
         if data:
             data = _apply_hint(data)
-        ok, reason = is_complete(data)
+        # For PDF attachments, save if payor+amount found even without invoices
+        ok, reason = is_complete(data, allow_no_invoices=True)
         if ok:
             return data, pdf_bytes, ""
         # Attachment failed — try body before giving up
@@ -130,7 +138,9 @@ def smart_extract(email: dict, pdf_bytes: bytes | None, body_text: str, hint_pay
         data["invoices"] = extract_invoices(body_text + " " + subject)
     if data:
         data = _apply_hint(data)
-    ok, reason = is_complete(data)
+    # Allow no invoices if subject indicates a remittance advice (PDF invoices expected)
+    remittance_subject = bool(re.search(r"remittance advice|payment advice|remittance detail", subject, re.I))
+    ok, reason = is_complete(data, allow_no_invoices=remittance_subject)
     if ok:
         return data, None, ""
     return None, None, reason
@@ -429,6 +439,20 @@ def extract_track_b(pdf_bytes: bytes, sender: str, hint_payor: str = "") -> Opti
                 result["amount"] = max(amounts, key=lambda x: float(x.replace(",", ""))).replace(",", "")
             except Exception:
                 pass
+        # Try to extract payor from common PDF patterns
+        for pattern in [
+            r"From Payer[:\s]+([^\n]+)",
+            r"Payer[:\s]+([^\n]+)",
+            r"Payor[:\s]+([^\n]+)",
+            r"Remitter[:\s]+([^\n]+)",
+        ]:
+            m = re.search(pattern, text, re.I)
+            if m:
+                raw = m.group(1).strip()
+                if len(raw) > 2 and "SCIENCE EXCHANGE" not in raw.upper():
+                    result["payor"]      = raw
+                    result["payorShort"] = raw
+                    break
 
     if result["amount"]:
         try:
