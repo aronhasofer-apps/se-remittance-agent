@@ -884,13 +884,21 @@ def _do_update():
         if not info or not info.get("download_url"): return
         current=sys.executable if getattr(sys,"frozen",False) else __file__
         new_exe=current+".new"
-        with urllib.request.urlopen(info["download_url"],timeout=60) as r:
-            with open(new_exe,"wb") as f: f.write(r.read())
+        _log(f"Downloading v{info['version']}...")
+        # Stream download with no timeout (large file)
+        req=urllib.request.Request(info["download_url"],headers={"User-Agent":"SE-Remittance-Agent"})
+        with urllib.request.urlopen(req) as r:
+            with open(new_exe,"wb") as f:
+                while True:
+                    chunk=r.read(65536)
+                    if not chunk: break
+                    f.write(chunk)
+        _log(f"Download complete — restarting...")
         bat=os.path.join(BASE_DIR,"_update.bat")
         with open(bat,"w") as f:
             f.write(f'@echo off\ntimeout /t 2 /nobreak>nul\nmove /y "{new_exe}" "{current}"\nstart "" "{current}"\ndel "%~f0"\n')
         import subprocess
-        subprocess.Popen(["cmd","/c",bat])
+        subprocess.Popen(["cmd","/c",bat],creationflags=subprocess.CREATE_NO_WINDOW)
         time.sleep(1); sys.exit(0)
     except Exception as e:
         _log(f"Update failed: {e}")
