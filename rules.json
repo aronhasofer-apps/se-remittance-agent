@@ -1,6 +1,6 @@
 {
-  "version": "1.0.6",
-  "updated": "2026-06-23",
+  "version": "1.0.7",
+  "updated": "2026-06-24",
   "rules": [
     {
       "id": "ariba-skip",
@@ -66,6 +66,16 @@
           "FW: Re: Science Exchange",
           "Science Exchange Payment Inquiry",
           "Payment Inquiry"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "svb-notification-skip",
+      "description": "SVB wire payment notification - skip (invoice ranges unacceptable, no individual invoice numbers)",
+      "match": {
+        "subject_contains": [
+          "Payment notification from"
         ]
       },
       "action": "skip"
