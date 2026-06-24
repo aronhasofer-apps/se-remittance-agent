@@ -1,4 +1,4 @@
 {
-  "version": "2.3.0",
-  "notes": "Update progress display, reliable restart, extraction fixes"
+  "version": "2.3.1",
+  "notes": "Fix SSL certificate error on corporate network"
 }
