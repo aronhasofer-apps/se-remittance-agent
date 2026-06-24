@@ -1,4 +1,4 @@
 {
-  "version": "2.2.6",
-  "notes": "Fix GSK/Merck/Amgen extraction"
+  "version": "2.2.7",
+  "notes": "Fix GSK/Rainwater/BMS \u2014 save with no invoices when PDF-based"
 }
