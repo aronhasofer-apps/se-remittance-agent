@@ -143,10 +143,25 @@
     </div>
 
     <div id="page-review" style="display:none">
-      <div class="placeholder">
-        <div class="glyph">&#128203;</div>
-        <div class="headline">Review is the next build</div>
-        <div>To&nbsp;Process / Skipped lists, per-row action overrides, and Confirm will live here.</div>
+      <div class="toolbar">
+        <button class="btn primary" id="revLoad" onclick="loadReview()">Refresh</button>
+        <button class="btn" id="revRerun" onclick="rerunEngine()">Re-run engine now</button>
+        <span class="spacer"></span>
+        <span id="revMode" class="no-fix"></span>
+      </div>
+      <div class="summary" id="revSummary" style="display:none">
+        <div class="stat"><div class="n" id="rv-process">0</div><div class="l">To process</div></div>
+        <div class="stat"><div class="n" id="rv-saved">0</div><div class="l">Saved / generated</div></div>
+        <div class="stat alert"><div class="n" id="rv-flag">0</div><div class="l">Flagged</div></div>
+        <div class="stat"><div class="n" id="rv-skip">0</div><div class="l">Skipped</div></div>
+      </div>
+      <div id="review-body">
+        <div class="state">
+          <div class="glyph">&#128203;</div>
+          <div class="headline">Load the latest run</div>
+          <div class="detail">See what the engine pulled from the remittance inbox, the method it used, and act on each item.</div>
+          <button class="btn primary" onclick="loadReview()">Refresh</button>
+        </div>
       </div>
     </div>
     <div id="page-log" style="display:none">
@@ -316,6 +331,186 @@
       .withFailureHandler(function(err){ setBusy(false); flash('Rename failed: ' + (err.message||err)); })
       .qaRename(items);
   }
+  // ---------------- REVIEW PAGE ----------------
+  var REVIEW = null;
+  var ACTION_LABELS = {
+    save_attachment: 'Save attachment',
+    extract_body: 'Extract from body',
+    skip: 'Skip',
+    flag: 'Flag for review'
+  };
+
+  function loadReview() {
+    var btn = document.getElementById('revLoad');
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading\u2026'; }
+    document.getElementById('review-body').innerHTML =
+      '<div class="state"><div class="spinner"></div>'
+      + '<div class="headline" style="margin-top:14px">Loading the latest run</div></div>';
+    try {
+      google.script.run
+        .withSuccessHandler(function(res){
+          try { REVIEW = res; renderReview(res); }
+          catch (e) { reviewError('Could not render: ' + (e && e.message ? e.message : e)); }
+          if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
+        })
+        .withFailureHandler(function(err){
+          reviewError(err && err.message ? err.message : String(err));
+          if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
+        })
+        .reviewData();
+    } catch (e) {
+      reviewError('Could not start: ' + (e && e.message ? e.message : e));
+      if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
+    }
+  }
+
+  function reviewError(msg) {
+    document.getElementById('review-body').innerHTML =
+      '<div class="state"><div class="glyph">&#9888;</div>'
+      + '<div class="headline">Couldn\u2019t load</div>'
+      + '<div class="detail">' + esc(msg) + '</div>'
+      + '<button class="btn primary" onclick="loadReview()">Try again</button></div>';
+  }
+
+  function rerunEngine() {
+    var btn = document.getElementById('revRerun');
+    if (!confirm('Run the engine now? It will scan the last 7 days of remittance mail and process anything new.')) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Running\u2026'; }
+    google.script.run
+      .withSuccessHandler(function(res){
+        flash('Engine run complete. ' + (res.summary || ''));
+        if (btn) { btn.disabled = false; btn.textContent = 'Re-run engine now'; }
+        loadReview();
+      })
+      .withFailureHandler(function(err){
+        flash('Run failed: ' + (err.message||err));
+        if (btn) { btn.disabled = false; btn.textContent = 'Re-run engine now'; }
+      })
+      .reviewRerun();
+  }
+
+  function renderReview(res) {
+    var who = document.getElementById('who');
+    if (who && res.user) who.innerHTML = 'Signed in<br>' + esc(res.user);
+    var modeEl = document.getElementById('revMode');
+    if (modeEl) {
+      var modeTxt = res.mode === 'live' ? 'LIVE mode \u2014 files also labeled in Gmail' : 'Shadow mode \u2014 files staged, Gmail untouched';
+      modeEl.innerHTML = esc(modeTxt) + (res.lastRunAt ? (' &middot; last run ' + esc(res.lastRunAt)) : '');
+    }
+
+    var tp = res.toProcess || [], sk = res.skipped || [];
+    document.getElementById('rv-process').textContent = tp.length;
+    document.getElementById('rv-saved').textContent = (res.counts.saved||0) + (res.counts.generated||0);
+    document.getElementById('rv-flag').textContent = res.counts.flagged||0;
+    document.getElementById('rv-skip').textContent = sk.length;
+    document.getElementById('revSummary').style.display = 'flex';
+
+    if (!tp.length && !sk.length) {
+      document.getElementById('review-body').innerHTML =
+        '<div class="state"><div class="glyph">&#128235;</div>'
+        + '<div class="headline">Nothing logged yet</div>'
+        + '<div class="detail">No remittances have been processed in the current window. '
+        + 'Click <b>Re-run engine now</b> to scan the inbox.</div></div>';
+      return;
+    }
+
+    var html = '';
+    html += reviewSection('To process', tp, false);
+    html += reviewSection('\u23ed Skipped', sk, true);
+    document.getElementById('review-body').innerHTML = html;
+  }
+
+  function reviewSection(title, items, isSkip) {
+    if (!items.length) {
+      return '<h3 style="font-size:13px;color:var(--muted);margin:22px 0 8px;font-weight:700;'
+        + 'text-transform:uppercase;letter-spacing:.05em">' + esc(title) + ' (0)</h3>'
+        + '<div class="no-fix" style="padding:0 2px 8px">None.</div>';
+    }
+    var h = '<h3 style="font-size:13px;color:var(--ink-soft);margin:22px 0 8px;font-weight:700;'
+      + 'text-transform:uppercase;letter-spacing:.05em">' + esc(title) + ' (' + items.length + ')</h3>';
+    h += '<div class="panel"><table><thead><tr>'
+      + '<th>Payor / amount</th><th>Method</th><th>Subject</th><th>Invoices</th><th>Action</th></tr></thead><tbody>';
+    items.forEach(function(it, i){
+      var idx = (isSkip ? 's' : 'p') + i;
+      var amt = it.amount ? ('<span class="newname">$' + esc(String(it.amount)) + (it.currency && it.currency!=='USD' ? (' '+esc(it.currency)) : '') + '</span>') : '<span class="no-fix">\u2014</span>';
+      var payor = it.payor ? esc(it.payor) : '<span class="no-fix">(unresolved)</span>';
+      var outcomeBadge = outcomeBadge_(it.outcome);
+      var fileLink = it.fileUrl ? (' &middot; <a href="'+esc(it.fileUrl)+'" target="_blank" class="fname" style="font-size:11.5px">file</a>') : '';
+      var gmailLink = it.gmailUrl ? ('<a href="'+esc(it.gmailUrl)+'" target="_blank" class="fname" style="font-size:11.5px">open email</a>') : '';
+      h += '<tr>'
+        + '<td><div style="font-weight:600">' + payor + '</div>' + amt + ' ' + outcomeBadge + '</td>'
+        + '<td><span class="badge low">' + esc(it.method) + '</span></td>'
+        + '<td style="max-width:280px"><div class="fname" style="font-size:11.5px;color:var(--ink-soft)">' + esc(it.subject) + '</div>'
+          + '<div style="margin-top:3px">' + gmailLink + fileLink + '</div>'
+          + (it.note ? ('<div class="no-fix" style="margin-top:2px">' + esc(it.note) + '</div>') : '') + '</td>'
+        + '<td class="fname" style="font-size:11.5px">' + (it.invoices ? esc(it.invoices) : '<span class="no-fix">\u2014</span>') + '</td>'
+        + '<td>' + actionControl_(idx, it) + '</td>'
+        + '</tr>';
+    });
+    h += '</tbody></table></div>';
+    return h;
+  }
+
+  function outcomeBadge_(o) {
+    var map = { 'SAVED':'save', 'GENERATED':'save', 'FLAGGED':'flag', 'DUPLICATE':'dup', 'SKIPPED':'skip', 'ALREADY PROCESSED':'done' };
+    var cls = { 'save':'low', 'flag':'high', 'dup':'medium', 'skip':'low', 'done':'low' }[map[o]||'low'] || 'low';
+    var label = { 'SAVED':'saved', 'GENERATED':'generated', 'FLAGGED':'needs review', 'DUPLICATE':'duplicate', 'SKIPPED':'skipped', 'ALREADY PROCESSED':'already done' }[o] || String(o).toLowerCase();
+    return '<span class="badge ' + cls + '">' + esc(label) + '</span>';
+  }
+
+  function actionControl_(idx, it) {
+    var opts = ['save_attachment','extract_body','skip','flag'];
+    var sel = '<select class="btn" style="padding:6px 8px;font-weight:500" onchange="onActionChange(\''+idx+'\', this.value)">';
+    opts.forEach(function(o){
+      sel += '<option value="'+o+'"'+(o===it.action?' selected':'')+'>'+ACTION_LABELS[o]+'</option>';
+    });
+    sel += '</select>';
+    var ruleBtn = '<button class="btn" style="padding:6px 10px;margin-left:6px" onclick="openRuleForm(\''+idx+'\')">Create rule</button>';
+    return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">' + sel + ruleBtn + '</div>';
+  }
+
+  function itemByIdx(idx) {
+    var isSkip = idx.charAt(0) === 's';
+    var i = parseInt(idx.slice(1), 10);
+    return (isSkip ? REVIEW.skipped : REVIEW.toProcess)[i];
+  }
+
+  function onActionChange(idx, val) {
+    var it = itemByIdx(idx);
+    // A one-off action change is advisory in shadow mode; the durable fix is a rule.
+    flash('Action for "' + (it.payor || it.subject).slice(0,40) + '" set to ' + ACTION_LABELS[val] + '. Create a rule to make it stick.');
+  }
+
+  function openRuleForm(idx) {
+    var it = itemByIdx(idx);
+    var suggested = it.payor || '';
+    var shortName = prompt('Create a rule for this payor.\n\nShort name for the filename (e.g. GSK, BMS, Merck):', suggested);
+    if (shortName === null) return;
+    var action = prompt('How should this payor always be handled?\n\nType one of:\n  save_attachment\n  extract_body\n  skip\n  flag', it.action || 'save_attachment');
+    if (action === null) return;
+    action = action.trim();
+    if (['save_attachment','extract_body','skip','flag'].indexOf(action) === -1) {
+      flash('Rule not created: action must be save_attachment, extract_body, skip, or flag.');
+      return;
+    }
+    // Match on a distinctive word from the subject by default (works with group From-rewrites).
+    var kw = prompt('Match this rule when the SUBJECT contains (a distinctive word, e.g. the payor name):', firstSubjectKeyword(it));
+    if (kw === null) return;
+    google.script.run
+      .withSuccessHandler(function(res){
+        if (res.ok) flash('Rule created. It applies on the next engine run (' + res.count + ' local rule(s)).');
+        else flash('Rule failed: ' + res.error);
+      })
+      .withFailureHandler(function(err){ flash('Rule failed: ' + (err.message||err)); })
+      .reviewCreateRule({ match: { subject_contains: [kw] }, action: action, short_name: shortName });
+  }
+
+  function firstSubjectKeyword(it) {
+    if (it.payor) return it.payor.split(/[,\s]+/)[0];
+    var w = (it.subject||'').split(/\s+/).filter(function(x){ return x.length > 3; });
+    return w.length ? w[0] : '';
+  }
+
   // Shell is painted by the HTML above. No on-load scan takeover (that was the blank-page cause).
   // Populate the signed-in name non-destructively via a PUBLIC wrapper (no trailing underscore).
   window.addEventListener('load', function(){
