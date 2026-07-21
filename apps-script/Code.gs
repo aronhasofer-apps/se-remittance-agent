@@ -64,11 +64,29 @@ const CONFIG = {
   AMOUNT_MAX: 1000000,
 
   MAX_PROCESS_PER_RUN: 25, // anything beyond rolls to the next 10-min cycle
+}
+
+/**
+ * The engine's tunable settings, with live overrides from Script Properties
+ * (written by the Settings page) layered over the CONFIG defaults. Everything
+ * that the UI can change flows through here so a Settings change takes effect
+ * on the very next run — no redeploy.
+ */
+function effectiveConfig_() {
+  const p = PropertiesService.getScriptProperties();
+  function num(key, dflt) { const v = p.getProperty(key); const n = v == null ? NaN : Number(v); return isFinite(n) ? n : dflt; }
+  function str(key, dflt) { const v = p.getProperty(key); return (v == null || v === '') ? dflt : v; }
+  return {
+    mode: str('SET_MODE', CONFIG.MODE),
+    lookbackDays: num('SET_LOOKBACK_DAYS', CONFIG.LOOKBACK_DAYS),
+    maxPerRun: num('SET_MAX_PER_RUN', CONFIG.MAX_PROCESS_PER_RUN),
+  };
 };
 
 // ========================= ENTRY POINTS =========================
 
 function runRemittanceScan() {
+  const EFFCFG = effectiveConfig_();
   const lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) return; // previous run still finishing
   try {
@@ -102,7 +120,7 @@ function runRemittanceScan() {
       } else if (v.action === 'flag') {
         outcome = { status: 'FLAGGED', note: v.note || 'Needs human review' };
         counts.flagged++;
-      } else if (processedThisRun >= CONFIG.MAX_PROCESS_PER_RUN) {
+      } else if (processedThisRun >= EFFCFG.maxPerRun) {
         deferred++;
         continue; // not logged → picked up next cycle
       } else {
@@ -112,7 +130,7 @@ function runRemittanceScan() {
         else if (outcome.status === 'GENERATED') counts.generated++;
         else if (outcome.status === 'DUPLICATE') counts.duplicate++;
         else counts.flagged++;
-        if (CONFIG.MODE === 'live') applyMarker_(msg);
+        if (EFFCFG.mode === 'live') applyMarker_(msg);
       }
 
       rows.push([
@@ -219,13 +237,13 @@ function findMessages_() {
   const base = '{list:' + CONFIG.GROUP_ADDRESS +
                ' to:' + CONFIG.GROUP_ADDRESS +
                ' deliveredto:' + CONFIG.GROUP_ADDRESS + '}' +
-               ' newer_than:' + CONFIG.LOOKBACK_DAYS + 'd';
+               ' newer_than:' + effectiveConfig_().lookbackDays + 'd';
   const buckets = [
     { q: base,               location: 'Mail'  },
     { q: base + ' in:spam',  location: 'SPAM'  },
     { q: base + ' in:trash', location: 'TRASH' },
   ];
-  const cutoff = Date.now() - CONFIG.LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - effectiveConfig_().lookbackDays * 24 * 60 * 60 * 1000;
   const out = new Map();
 
   buckets.forEach(function (b) {
