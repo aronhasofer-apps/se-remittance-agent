@@ -444,3 +444,129 @@ function fmtCell_(v, tz) {
   if (v instanceof Date) return Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm');
   return v == null ? '' : String(v);
 }
+
+// ============================================================
+//  SETTINGS PAGE — read/write the engine's tunable config,
+//  manage UI-created local rules, force a rules refresh.
+// ============================================================
+
+/** Current effective settings + the CONFIG defaults, for the Settings page. */
+function getSettings() {
+  const p = PropertiesService.getScriptProperties();
+  const eff = effectiveConfig_();
+  // Local rules created via the UI.
+  let local = [];
+  try { const raw = p.getProperty('LOCAL_RULES'); if (raw) local = JSON.parse(raw); } catch (e) {}
+  // Rules version currently cached from GitHub.
+  let rulesVersion = '?', rulesCount = 0, rulesSource = '';
+  try {
+    const cached = p.getProperty('RULES_CACHE');
+    if (cached) { const parsed = JSON.parse(cached); rulesVersion = parsed.version || '?'; rulesCount = (parsed.rules||[]).length; }
+  } catch (e) {}
+  return {
+    user: getActiveUser_(),
+    mode: eff.mode,
+    lookbackDays: eff.lookbackDays,
+    maxPerRun: eff.maxPerRun,
+    defaults: { mode: CONFIG.MODE, lookbackDays: CONFIG.LOOKBACK_DAYS, maxPerRun: CONFIG.MAX_PROCESS_PER_RUN },
+    triggerMinutes: CONFIG.TRIGGER_MINUTES,
+    groupAddress: CONFIG.GROUP_ADDRESS,
+    rulesUrl: CONFIG.RULES_URL,
+    rulesVersion: rulesVersion,
+    rulesCount: rulesCount,
+    localRules: local,
+    markerLabel: CONFIG.MARKER_LABEL,
+  };
+}
+
+/**
+ * Save settings from the UI. Mode change to 'live' is the one sensitive control:
+ * the caller passes confirmLive:true, set by an explicit confirm in the UI.
+ * payload: { mode, lookbackDays, maxPerRun, confirmLive }
+ */
+function saveSettings(payload) {
+  const p = PropertiesService.getScriptProperties();
+  const out = { ok: true, changed: [] };
+  if (payload.mode === 'live' && !payload.confirmLive) {
+    return { ok: false, error: 'Switching to LIVE mode requires explicit confirmation.' };
+  }
+  if (payload.mode === 'shadow' || payload.mode === 'live') {
+    p.setProperty('SET_MODE', payload.mode); out.changed.push('mode');
+  }
+  const lb = Number(payload.lookbackDays);
+  if (isFinite(lb) && lb >= 1 && lb <= 60) { p.setProperty('SET_LOOKBACK_DAYS', String(lb)); out.changed.push('lookback'); }
+  const mx = Number(payload.maxPerRun);
+  if (isFinite(mx) && mx >= 1 && mx <= 100) { p.setProperty('SET_MAX_PER_RUN', String(mx)); out.changed.push('maxPerRun'); }
+  return out;
+}
+
+/** Delete a UI-created local rule by its id. */
+function deleteLocalRule(ruleId) {
+  const p = PropertiesService.getScriptProperties();
+  let local = [];
+  try { const raw = p.getProperty('LOCAL_RULES'); if (raw) local = JSON.parse(raw); } catch (e) {}
+  const before = local.length;
+  local = local.filter(function(r){ return r.id !== ruleId; });
+  p.setProperty('LOCAL_RULES', JSON.stringify(local));
+  return { ok: true, removed: before - local.length, remaining: local.length };
+}
+
+/** Force-refresh the GitHub rules cache now (Settings > Refresh rules). */
+function refreshRulesNow() {
+  try {
+    const r = loadRules_();
+    return { ok: true, version: r.version, count: (r.list||[]).length, source: r.source, localCount: r.localCount || 0 };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+// ============================================================
+//  RUN LOG PAGE — the actual run history from the Runs tab.
+// ============================================================
+
+/** Returns the most recent runs (newest first) for the Run Log page. */
+function getRunLog(limit) {
+  const log = getLog_();
+  const tz = Session.getScriptTimeZone();
+  const runs = log.runs;
+  const last = runs.getLastRow();
+  const rows = [];
+  if (last >= 2) {
+    const n = Math.min(limit || 40, last - 1);
+    const startRow = last - n + 1;
+    // RUN_HEADERS: 0 Run at | 1 In window | 2 New logged | 3 Rules loaded | 4 Rules version | 5 Rules source | 6 Error | 7 Outcomes
+    const rng = runs.getRange(startRow, 1, n, 8).getValues();
+    for (let i = rng.length - 1; i >= 0; i--) {
+      const r = rng[i];
+      rows.push({
+        at: fmtCell_(r[0], tz),
+        inWindow: r[1],
+        newLogged: r[2],
+        rulesLoaded: r[3],
+        rulesVersion: r[4],
+        rulesSource: r[5],
+        error: r[6] || '',
+        outcomes: r[7] || '',
+      });
+    }
+  }
+  // Also surface recent saved files (Saved tab) as a secondary feed.
+  let saved = [];
+  try {
+    const sv = log.ss.getSheetByName('Saved');
+    if (sv) {
+      const lr = sv.getLastRow();
+      if (lr >= 2) {
+        const m = Math.min(20, lr - 1);
+        const srng = sv.getRange(lr - m + 1, 1, m, 9).getValues();
+        for (let i = srng.length - 1; i >= 0; i--) {
+          const s = srng[i];
+          saved.push({ at: fmtCell_(s[0], tz), filename: s[1], amount: s[2], currency: s[3],
+            invoices: s[4], payor: s[5], subject: s[6], fileUrl: s[8] });
+        }
+      }
+    }
+  } catch (e) {}
+  return { user: getActiveUser_(), generatedAt: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm'), runs: rows, saved: saved };
+}
