@@ -6,186 +6,229 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {
-    --paper:#f4f6f8; --card:#ffffff; --ink:#12202e; --ink-soft:#3d4d5c;
-    --muted:#6b7a89; --line:#e2e8ee; --line-soft:#eef2f6;
-    --accent:#1763c6; --accent-dark:#0f4a9c; --accent-wash:#eaf1fb;
-    --high:#b3261e; --high-wash:#fdecea; --med:#8a5a00; --med-wash:#fbf3e2;
-    --live:#7b3fb3; --live-wash:#f2ebfa; --ok:#1a7f4b; --ok-wash:#e7f4ec;
+    --ink:#0f1e2e; --slate:#33475b; --muted:#6b7a89; --paper:#f5f7fa; --card:#ffffff;
+    --line:#dde4ec; --line-soft:#eaeef3; --brand:#12508a; --brand-2:#0c3a66; --brand-wash:#e9f0f7;
+    --gold:#9a7b1f; --gold-wash:#f7f2e4;
+    --green:#1a7f4b; --green-wash:#e7f4ec; --amber:#8a5a00; --amber-wash:#fbf3e2;
+    --red:#b3261e; --red-wash:#fdecea; --violet:#6b3fa0; --violet-wash:#f1ebf8;
+    --serif:Georgia,'Times New Roman','Iowan Old Style',serif;
     --mono:"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   }
   * { box-sizing:border-box; }
   html,body { margin:0; }
-  body {
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    background:var(--paper); color:var(--ink); font-size:14px; line-height:1.5;
-    -webkit-font-smoothing:antialiased;
-  }
-  header { background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20; }
-  .header-inner { max-width:1120px; margin:0 auto; padding:16px 24px 0; display:flex; align-items:flex-start; gap:14px; }
-  .mark { width:34px; height:34px; border-radius:8px; flex:none;
-    background:linear-gradient(135deg,var(--accent),var(--accent-dark));
-    display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:15px; letter-spacing:-.02em; }
-  .title h1 { font-size:16px; margin:0; font-weight:700; letter-spacing:-.01em; }
-  .title .sub { font-size:12px; color:var(--muted); margin-top:1px; }
-  .who { margin-left:auto; text-align:right; font-size:12px; color:var(--muted); padding-top:3px; }
-  nav { max-width:1120px; margin:0 auto; padding:10px 24px 0; display:flex; gap:2px; }
-  nav button { background:none; border:none; padding:10px 15px 12px; cursor:pointer; font-size:13px;
-    color:var(--muted); border-bottom:2.5px solid transparent; font-weight:600; letter-spacing:-.01em; border-radius:6px 6px 0 0; }
-  nav button:hover:not(:disabled) { color:var(--ink-soft); background:var(--line-soft); }
-  nav button.active { color:var(--accent); border-bottom-color:var(--accent); }
-  nav button:disabled { opacity:.4; cursor:default; }
-  nav button .soon { font-size:9.5px; text-transform:uppercase; letter-spacing:.05em;
-    background:var(--line); color:var(--muted); padding:1px 5px; border-radius:8px; margin-left:5px; font-weight:700; }
-  main { max-width:1120px; margin:0 auto; padding:18px 24px 48px; }
-  .note { background:var(--accent-wash); border:1px solid #cfe0f7; color:var(--accent-dark);
-    border-radius:9px; padding:10px 14px; font-size:12.5px; margin-bottom:14px; line-height:1.5; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper); color:var(--ink); font-size:13.5px; line-height:1.5; -webkit-font-smoothing:antialiased; }
+
+  /* Header: engraved wordmark with a brass seal */
+  header { background:var(--card); border-bottom:1px solid var(--line); }
+  .header-inner { max-width:1160px; margin:0 auto; padding:14px 24px 0; display:flex; align-items:center; gap:13px; }
+  .seal { width:38px; height:38px; border-radius:50%; flex:none; position:relative;
+    background:radial-gradient(circle at 35% 30%, #b9962f, var(--gold) 60%, #7c611a);
+    display:flex; align-items:center; justify-content:center; color:#fff; font-family:var(--serif);
+    font-weight:700; font-size:14px; letter-spacing:.02em; box-shadow:inset 0 0 0 2px rgba(255,255,255,.25), inset 0 0 0 3px rgba(0,0,0,.12); }
+  .brand-text h1 { font-family:var(--serif); font-size:19px; margin:0; font-weight:700; letter-spacing:.01em; color:var(--ink); }
+  .brand-text .sub { font-size:11.5px; color:var(--muted); margin-top:1px; letter-spacing:.02em; text-transform:uppercase; }
+  .who { margin-left:auto; text-align:right; font-size:11.5px; color:var(--muted); line-height:1.35; }
+  .who b { color:var(--slate); font-weight:600; }
+  nav { max-width:1160px; margin:0 auto; padding:12px 24px 0; display:flex; gap:3px; }
+  nav button { background:none; border:none; padding:9px 16px 12px; cursor:pointer; font-size:13px;
+    color:var(--muted); border-bottom:2.5px solid transparent; font-weight:600; letter-spacing:.01em; }
+  nav button:hover:not(.active) { color:var(--slate); }
+  nav button.active { color:var(--brand); border-bottom-color:var(--brand); }
+
+  main { max-width:1160px; margin:0 auto; padding:20px 24px 52px; }
+
+  h2.page-title { font-family:var(--serif); font-size:22px; font-weight:700; margin:0 0 3px; letter-spacing:.01em; }
+  .page-lede { color:var(--muted); font-size:12.5px; margin-bottom:16px; }
+
+  .note { background:var(--brand-wash); border:1px solid #cbdcec; color:var(--brand-2);
+    border-radius:7px; padding:9px 13px; font-size:12px; margin-bottom:14px; line-height:1.5; }
   .note b { font-weight:700; }
-  .toolbar { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
-  .btn { border:1px solid var(--line); background:var(--card); border-radius:8px; padding:9px 15px; cursor:pointer;
-    font-size:13px; font-weight:600; color:var(--ink); letter-spacing:-.01em; transition:border-color .12s, background .12s; }
-  .btn:hover:not(:disabled) { border-color:#c3ccd6; background:#fbfcfd; }
-  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
-  .btn.primary:hover:not(:disabled) { background:var(--accent-dark); border-color:var(--accent-dark); }
-  .btn.danger { background:var(--high); color:#fff; border-color:var(--high); }
-  .btn.danger:hover:not(:disabled) { background:#8f1e17; border-color:#8f1e17; }
-  .btn:disabled { opacity:.45; cursor:default; }
+
+  .toolbar { display:flex; align-items:center; gap:9px; margin-bottom:14px; flex-wrap:wrap; }
+  .btn { border:1px solid var(--line); background:var(--card); border-radius:7px; padding:8px 14px; cursor:pointer;
+    font-size:12.5px; font-weight:600; color:var(--ink); letter-spacing:.01em; transition:all .12s; }
+  .btn:hover:not(:disabled) { border-color:#c1ccd8; background:#fbfcfd; }
+  .btn.primary { background:var(--brand); color:#fff; border-color:var(--brand); }
+  .btn.primary:hover:not(:disabled) { background:var(--brand-2); border-color:var(--brand-2); }
+  .btn.danger { background:var(--red); color:#fff; border-color:var(--red); }
+  .btn.danger:hover:not(:disabled) { background:#8f1e17; }
+  .btn.ghost { background:none; }
+  .btn:disabled { opacity:.4; cursor:default; }
+  .btn.sm { padding:5px 10px; font-size:11.5px; }
   .spacer { flex:1; }
-  .summary { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
-  .stat { background:var(--card); border:1px solid var(--line); border-radius:9px; padding:9px 13px; min-width:92px; flex:1; max-width:160px; }
-  .stat .n { font-size:20px; font-weight:750; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
-  .stat .l { font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; margin-top:2px; }
-  .stat.alert .n { color:var(--high); }
-  .stat.live .n { color:var(--live); }
-  .panel { background:var(--card); border:1px solid var(--line); border-radius:11px; overflow:hidden; }
+
+  .stats { display:flex; gap:9px; margin-bottom:15px; flex-wrap:wrap; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:9px 14px; min-width:96px; flex:1; max-width:172px; }
+  .stat .n { font-size:21px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.01em; font-family:var(--mono); }
+  .stat .l { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; font-weight:700; margin-top:3px; }
+  .stat.alert .n { color:var(--red); } .stat.live .n { color:var(--violet); } .stat.good .n { color:var(--green); }
+
+  .card { background:var(--card); border:1px solid var(--line); border-radius:9px; overflow:hidden; }
+  .card + .card { margin-top:14px; }
+  .card-head { padding:11px 15px; border-bottom:1px solid var(--line-soft); font-weight:700; font-size:13px;
+    display:flex; align-items:center; gap:8px; background:#fafcfd; }
+  .card-body { padding:15px; }
+
   table { width:100%; border-collapse:collapse; }
-  th,td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
-  th { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); background:#f7f9fb; font-weight:700; }
+  th,td { text-align:left; padding:8px 13px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  th { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); background:#fafcfd; font-weight:700; }
   tbody tr:last-child td { border-bottom:none; }
   tbody tr:hover { background:#fafcfd; }
-  .fname { font-family:var(--mono); font-size:12.5px; color:var(--ink); word-break:break-all; text-decoration:none; }
-  .fname:hover { color:var(--accent); text-decoration:underline; }
-  .newname { font-family:var(--mono); font-size:12.5px; color:var(--ok); word-break:break-all; }
-  .no-fix { color:var(--muted); font-size:12px; }
-  .badge { display:inline-block; padding:2.5px 9px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap; letter-spacing:.01em; }
-  .badge.high { background:var(--high-wash); color:var(--high); }
-  .badge.medium { background:var(--med-wash); color:var(--med); }
-  .badge.low { background:var(--line-soft); color:var(--muted); }
-  .badge.live { background:var(--live-wash); color:var(--live); margin-left:6px; }
-  .issues { margin-top:5px; }
-  .tag { display:inline-block; background:var(--line-soft); color:var(--ink-soft); border-radius:5px; padding:2px 7px; margin:2px 4px 0 0; font-size:11.5px; }
-  .tag.reextract { background:var(--high-wash); color:var(--high); font-weight:600; }
-  .row-check { width:36px; text-align:center; }
-  input[type=checkbox] { width:15px; height:15px; accent-color:var(--accent); cursor:pointer; }
-  .state { text-align:center; padding:56px 24px; color:var(--muted); }
-  .state .glyph { font-size:34px; margin-bottom:12px; opacity:.85; }
-  .state .headline { font-size:15px; color:var(--ink-soft); font-weight:600; margin-bottom:4px; }
-  .state .detail { font-size:13px; }
-  .state .btn { margin-top:16px; display:inline-block; }
-  .spinner { display:inline-block; width:22px; height:22px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+  td.num, th.num { text-align:right; }
+
+  /* Signature: the money treatment */
+  .amount { font-family:var(--mono); font-size:13px; font-weight:600; color:var(--ink); font-variant-numeric:tabular-nums;
+    border-left:2px solid var(--gold); padding-left:7px; white-space:nowrap; }
+  .amount.muted-amt { color:var(--muted); border-left-color:var(--line); }
+  .mono { font-family:var(--mono); font-size:11.5px; word-break:break-all; }
+  .mono.ok { color:var(--green); }
+  .link { color:var(--brand); text-decoration:none; } .link:hover { text-decoration:underline; }
+  .sub-cell { color:var(--muted); font-size:11px; }
+
+  .badge { display:inline-block; padding:2px 8px; border-radius:11px; font-size:10.5px; font-weight:700; white-space:nowrap; letter-spacing:.02em; }
+  .badge.b-green { background:var(--green-wash); color:var(--green); }
+  .badge.b-amber { background:var(--amber-wash); color:var(--amber); }
+  .badge.b-red { background:var(--red-wash); color:var(--red); }
+  .badge.b-violet { background:var(--violet-wash); color:var(--violet); }
+  .badge.b-gray { background:var(--line-soft); color:var(--muted); }
+  .badge.b-brand { background:var(--brand-wash); color:var(--brand); }
+
+  .sec-head { font-size:11.5px; color:var(--slate); margin:18px 0 7px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+    display:flex; align-items:center; gap:8px; }
+  .sec-head.attention { color:var(--red); }
+  .sec-head .count { color:var(--muted); font-weight:600; }
+  .attention-banner { background:var(--red-wash); border:1px solid #f2c9c5; color:var(--red); border-radius:7px;
+    padding:9px 13px; font-size:12.5px; margin-bottom:4px; } .attention-banner b { font-weight:800; }
+  .allclear { background:var(--green-wash); border:1px solid #c4e6d1; color:var(--green); border-radius:7px; padding:11px 14px; font-size:12.5px; }
+
+  .state { text-align:center; padding:48px 24px; color:var(--muted); }
+  .state .glyph { font-size:30px; margin-bottom:10px; }
+  .state .headline { font-size:14px; color:var(--slate); font-weight:600; margin-bottom:3px; }
+  .state .detail { font-size:12.5px; }
+  .state .btn { margin-top:14px; display:inline-block; }
+  .spinner { display:inline-block; width:20px; height:20px; border:3px solid var(--line); border-top-color:var(--brand); border-radius:50%; animation:spin .8s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
-  .placeholder { background:var(--card); border:1px dashed var(--line); border-radius:11px; padding:52px 28px; text-align:center; color:var(--muted); }
-  .placeholder .glyph { font-size:30px; opacity:.7; margin-bottom:10px; }
-  .placeholder .headline { font-size:14px; color:var(--ink-soft); font-weight:600; margin-bottom:4px; }
+
+  /* Settings */
+  .set-row { display:flex; align-items:flex-start; gap:16px; padding:14px 0; border-bottom:1px solid var(--line-soft); }
+  .set-row:last-child { border-bottom:none; }
+  .set-label { width:190px; flex:none; }
+  .set-label .t { font-weight:600; font-size:13px; }
+  .set-label .d { color:var(--muted); font-size:11.5px; margin-top:2px; }
+  .set-control { flex:1; }
+  select.inp, input.inp { border:1px solid var(--line); border-radius:6px; padding:7px 10px; font-size:13px; font-family:inherit; background:var(--card); color:var(--ink); }
+  input.inp { width:90px; font-family:var(--mono); }
+  .mode-toggle { display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+  .mode-toggle button { border:none; background:var(--card); padding:7px 16px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--muted); }
+  .mode-toggle button.on-shadow { background:var(--slate); color:#fff; }
+  .mode-toggle button.on-live { background:var(--violet); color:#fff; }
+  .pill { display:inline-block; padding:2px 9px; border-radius:11px; font-size:11px; font-weight:700; }
+  .pill.shadow { background:var(--line-soft); color:var(--slate); }
+  .pill.live { background:var(--violet-wash); color:var(--violet); }
+  .kv { display:flex; gap:8px; font-size:12.5px; padding:5px 0; }
+  .kv .k { color:var(--muted); width:150px; flex:none; }
+  .kv .v { font-family:var(--mono); font-size:12px; }
+  .rule-item { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line-soft); font-size:12.5px; }
+  .rule-item:last-child { border-bottom:none; }
+
   .flash { position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(8px); background:var(--ink); color:#fff;
-    padding:12px 20px; border-radius:9px; font-size:13px; box-shadow:0 8px 28px rgba(18,32,46,.28); opacity:0;
-    transition:opacity .2s, transform .2s; z-index:60; max-width:80%; pointer-events:none; }
+    padding:11px 19px; border-radius:8px; font-size:12.5px; box-shadow:0 8px 28px rgba(15,30,46,.3); opacity:0;
+    transition:opacity .2s, transform .2s; z-index:60; max-width:80%; }
   .flash.show { opacity:1; transform:translateX(-50%) translateY(0); }
   @media (prefers-reduced-motion: reduce) { .spinner { animation:none; } .flash { transition:none; } }
-
-  /* Review: exception-queue styling + tighter rhythm */
-  .sec-head { font-size:12px; color:var(--muted); margin:16px 0 6px; font-weight:700;
-    text-transform:uppercase; letter-spacing:.05em; }
-  .sec-head.attention { color:var(--high); }
-  .attention-banner { background:var(--high-wash); border:1px solid #f2c9c5; color:var(--high);
-    border-radius:9px; padding:10px 14px; font-size:13px; margin-bottom:6px; }
-  .attention-banner b { font-weight:800; }
-  .allclear { background:var(--ok-wash); border:1px solid #c4e6d1; color:var(--ok);
-    border-radius:9px; padding:12px 15px; font-size:13px; margin-bottom:10px; }
 </style>
 </head>
 <body>
   <header>
     <div class="header-inner">
-      <div class="mark">SE</div>
-      <div class="title">
+      <div class="seal">SE</div>
+      <div class="brand-text">
         <h1>Remittance Agent</h1>
-        <div class="sub">Accounts Receivable &middot; daily cash receipts</div>
+        <div class="sub">Treasury &middot; Daily Cash Receipts</div>
       </div>
       <div class="who" id="who">&nbsp;</div>
     </div>
     <nav>
-      <button class="active" data-page="qa" onclick="showPage('qa')">QA Cleanup</button>
-      <button data-page="review" onclick="showPage('review')">Review <span class="soon">soon</span></button>
-      <button data-page="log" onclick="showPage('log')">Run Log <span class="soon">soon</span></button>
-      <button data-page="settings" onclick="showPage('settings')">Settings <span class="soon">soon</span></button>
+      <button class="active" data-page="review" onclick="showPage('review')">Review</button>
+      <button data-page="qa" onclick="showPage('qa')">QA Cleanup</button>
+      <button data-page="log" onclick="showPage('log')">Run Log</button>
+      <button data-page="settings" onclick="showPage('settings')">Settings</button>
     </nav>
   </header>
 
   <main>
-    <div id="page-qa">
-      <div class="note">
-        Scans your <b>staging</b> and <b>live</b> folders and flags files that look wrong. Nothing changes
-        until you tick rows and choose an action. Trash goes to Drive Trash (recoverable 30 days). Rename
-        fixes the filename only &mdash; it never edits invoices inside a file.
+    <!-- ===================== REVIEW ===================== -->
+    <div id="page-review">
+      <h2 class="page-title">Review</h2>
+      <div class="page-lede">What the agent pulled from the remittance inbox. It processes everything it can on its own &mdash; you only act on what it couldn&rsquo;t place.</div>
+      <div class="toolbar">
+        <button class="btn primary" id="revLoad" onclick="loadReview()">Refresh</button>
+        <button class="btn" id="revRerun" onclick="rerunEngine()">Run agent now</button>
+        <span class="spacer"></span>
+        <span id="revMode" class="sub-cell"></span>
       </div>
+      <div class="stats" id="revStats" style="display:none">
+        <div class="stat alert"><div class="n" id="rv-attn">0</div><div class="l">Needs attention</div></div>
+        <div class="stat good"><div class="n" id="rv-saved">0</div><div class="l">Saved / generated</div></div>
+        <div class="stat"><div class="n" id="rv-skip">0</div><div class="l">Skipped</div></div>
+        <div class="stat"><div class="n" id="rv-total">0</div><div class="l">Total seen</div></div>
+      </div>
+      <div id="review-body">
+        <div class="state"><div class="glyph">&#128203;</div><div class="headline">Load the latest run</div>
+          <div class="detail">See what the agent processed and act on anything it flagged.</div>
+          <button class="btn primary" onclick="loadReview()">Refresh</button></div>
+      </div>
+    </div>
+
+    <!-- ===================== QA CLEANUP ===================== -->
+    <div id="page-qa" style="display:none">
+      <h2 class="page-title">QA Cleanup</h2>
+      <div class="page-lede">Audits the staging and live folders for naming and invoice problems. Proposes fixes &mdash; you approve each one.</div>
+      <div class="note">Nothing changes until you tick rows and choose an action. Trash goes to Drive Trash (recoverable 30 days). Rename fixes the filename only &mdash; it never edits invoices inside a file.</div>
       <div class="toolbar">
         <button class="btn primary" id="scanBtn" onclick="runScan()">Scan folders</button>
-        <button class="btn" id="selAll" onclick="toggleAll(true)" disabled>Select all</button>
-        <button class="btn" id="selNone" onclick="toggleAll(false)" disabled>Clear</button>
+        <button class="btn" id="selAll" onclick="qaToggleAll(true)" disabled>Select all</button>
+        <button class="btn" id="selNone" onclick="qaToggleAll(false)" disabled>Clear</button>
         <span class="spacer"></span>
         <button class="btn" id="renameBtn" onclick="doRename()" disabled>Rename selected</button>
         <button class="btn danger" id="trashBtn" onclick="doTrash()" disabled>Trash selected</button>
       </div>
-      <div class="summary" id="summary" style="display:none">
+      <div class="stats" id="qaStats" style="display:none">
         <div class="stat"><div class="n" id="s-total">0</div><div class="l">Flagged</div></div>
         <div class="stat alert"><div class="n" id="s-high">0</div><div class="l">High severity</div></div>
         <div class="stat live"><div class="n" id="s-live">0</div><div class="l">In live folder</div></div>
         <div class="stat"><div class="n" id="s-fix">0</div><div class="l">Auto-fixable</div></div>
       </div>
       <div id="qa-body">
-        <div class="state">
-          <div class="glyph">&#128269;</div>
-          <div class="headline">Ready to scan</div>
-          <div class="detail">Check the staging and live folders for naming and invoice issues.</div>
-          <button class="btn primary" onclick="runScan()">Scan folders</button>
-        </div>
+        <div class="state"><div class="glyph">&#128269;</div><div class="headline">Ready to scan</div>
+          <div class="detail">Check the staging and live folders for issues.</div>
+          <button class="btn primary" onclick="runScan()">Scan folders</button></div>
       </div>
     </div>
 
-    <div id="page-review" style="display:none">
-      <div class="toolbar">
-        <button class="btn primary" id="revLoad" onclick="loadReview()">Refresh</button>
-        <button class="btn" id="revRerun" onclick="rerunEngine()">Re-run engine now</button>
-        <span class="spacer"></span>
-        <span id="revMode" class="no-fix"></span>
-      </div>
-      <div class="summary" id="revSummary" style="display:none">
-        <div class="stat"><div class="n" id="rv-process">0</div><div class="l">To process</div></div>
-        <div class="stat"><div class="n" id="rv-saved">0</div><div class="l">Saved / generated</div></div>
-        <div class="stat alert"><div class="n" id="rv-flag">0</div><div class="l">Flagged</div></div>
-        <div class="stat"><div class="n" id="rv-skip">0</div><div class="l">Skipped</div></div>
-      </div>
-      <div id="review-body">
-        <div class="state">
-          <div class="glyph">&#128203;</div>
-          <div class="headline">Load the latest run</div>
-          <div class="detail">See what the engine pulled from the remittance inbox, the method it used, and act on each item.</div>
-          <button class="btn primary" onclick="loadReview()">Refresh</button>
-        </div>
-      </div>
-    </div>
+    <!-- ===================== RUN LOG ===================== -->
     <div id="page-log" style="display:none">
-      <div class="placeholder">
-        <div class="glyph">&#128220;</div>
-        <div class="headline">Run Log is coming next</div>
-        <div>Every scan and action, with who did what and when.</div>
+      <h2 class="page-title">Run Log</h2>
+      <div class="page-lede">Every time the agent ran, what it found, and the files it saved.</div>
+      <div class="toolbar">
+        <button class="btn primary" id="logLoad" onclick="loadLog()">Refresh</button>
+        <span class="spacer"></span>
+        <span id="logMeta" class="sub-cell"></span>
+      </div>
+      <div id="log-body">
+        <div class="state"><div class="glyph">&#128220;</div><div class="headline">Load run history</div>
+          <button class="btn primary" onclick="loadLog()">Refresh</button></div>
       </div>
     </div>
+
+    <!-- ===================== SETTINGS ===================== -->
     <div id="page-settings" style="display:none">
-      <div class="placeholder">
-        <div class="glyph">&#9881;</div>
-        <div class="headline">Settings is coming next</div>
-        <div>Mode (shadow / live), lookback window, and rules refresh.</div>
+      <h2 class="page-title">Settings</h2>
+      <div class="page-lede">How the agent runs. Changes take effect on the next run &mdash; no redeploy.</div>
+      <div id="settings-body">
+        <div class="state"><div class="glyph">&#9881;</div><div class="headline">Load settings</div>
+          <button class="btn primary" onclick="loadSettings()">Load</button></div>
       </div>
     </div>
   </main>
@@ -193,373 +236,305 @@
   <div class="flash" id="flash"></div>
 
 <script>
-  var SCAN = null;
-
   function showPage(p) {
-    ['qa','review','log','settings'].forEach(function(x){
-      var el = document.getElementById('page-'+x);
-      if (el) el.style.display = (x===p) ? 'block' : 'none';
+    ['review','qa','log','settings'].forEach(function(x){
+      var el = document.getElementById('page-'+x); if (el) el.style.display = (x===p)?'block':'none';
     });
-    var btns = document.querySelectorAll('nav button');
-    for (var i=0;i<btns.length;i++){ btns[i].classList.toggle('active', btns[i].getAttribute('data-page')===p); }
+    var b = document.querySelectorAll('nav button');
+    for (var i=0;i<b.length;i++) b[i].classList.toggle('active', b[i].getAttribute('data-page')===p);
+    // Lazy-load each page the first time it's shown.
+    if (p==='review' && !REVIEW) loadReview();
+    if (p==='log' && !RUNLOG) loadLog();
+    if (p==='settings' && !SETTINGS) loadSettings();
   }
-  function flash(msg) {
-    var f = document.getElementById('flash');
-    f.textContent = msg; f.classList.add('show');
-    setTimeout(function(){ f.classList.remove('show'); }, 3200);
-  }
-  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-  function setBusy(b) {
-    ['scanBtn','trashBtn','renameBtn','selAll','selNone'].forEach(function(id){
-      var el = document.getElementById(id); if (el) el.disabled = b;
-    });
-  }
-  function runScan() {
-    var btn = document.getElementById('scanBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Scanning\u2026'; }
-    document.getElementById('qa-body').innerHTML =
-      '<div class="state"><div class="spinner"></div>'
-      + '<div class="headline" style="margin-top:14px">Scanning folders</div>'
-      + '<div class="detail">Reading staging and live \u2014 this takes a few seconds.</div></div>';
-    try {
-      google.script.run
-        .withSuccessHandler(function(res){
-          try { SCAN = res; renderScan(res); }
-          catch (e) { showError('Could not render results: ' + (e && e.message ? e.message : e)); }
-          if (btn) { btn.disabled = false; btn.textContent = 'Rescan'; }
-        })
-        .withFailureHandler(function(err){
-          showError(err && err.message ? err.message : String(err));
-          if (btn) { btn.disabled = false; btn.textContent = 'Scan folders'; }
-        })
-        .qaScan();
-    } catch (e) {
-      showError('Could not start the scan: ' + (e && e.message ? e.message : e));
-      if (btn) { btn.disabled = false; btn.textContent = 'Scan folders'; }
-    }
-  }
-  function showError(msg) {
-    document.getElementById('qa-body').innerHTML =
-      '<div class="state"><div class="glyph">&#9888;</div>'
-      + '<div class="headline">Scan couldn\u2019t finish</div>'
-      + '<div class="detail">' + esc(msg) + '</div>'
-      + '<button class="btn primary" onclick="runScan()">Try again</button></div>';
-  }
-  function renderScan(res) {
-    var who = document.getElementById('who');
-    if (who) who.innerHTML = res && res.user ? ('Signed in<br>' + esc(res.user)) : '&nbsp;';
-    var rows = (res && res.rows) ? res.rows : [];
-    var high = rows.filter(function(r){return r.severity==='high';}).length;
-    var live = rows.filter(function(r){return r.live;}).length;
-    var fix  = rows.filter(function(r){return r.proposedName;}).length;
-    document.getElementById('s-total').textContent = rows.length;
-    document.getElementById('s-high').textContent = high;
-    document.getElementById('s-live').textContent = live;
-    document.getElementById('s-fix').textContent = fix;
-    document.getElementById('summary').style.display = 'flex';
-    var enable = rows.length > 0;
-    ['selAll','selNone'].forEach(function(id){ document.getElementById(id).disabled = !enable; });
-    if (!rows.length) {
-      document.getElementById('qa-body').innerHTML =
-        '<div class="state"><div class="glyph" style="color:var(--ok)">&#10003;</div>'
-        + '<div class="headline">Everything looks clean</div>'
-        + '<div class="detail">No naming or invoice issues in staging or live as of '
-        + esc(res.generatedAt) + '.</div></div>';
-      updateActionButtons(); return;
-    }
-    var html = '<div class="panel"><table><thead><tr>'
-      + '<th class="row-check"><input type="checkbox" id="hdrCheck" onclick="toggleAll(this.checked)"></th>'
-      + '<th>Severity</th><th>File</th><th>Proposed fix</th><th>Folder</th></tr></thead><tbody>';
-    rows.forEach(function(r, i){
-      var tags = r.issues.map(function(x){ return '<span class="tag">'+esc(x)+'</span>'; }).join('');
-      if (r.reextractNeeded) tags += '<span class="tag reextract">re-extraction needed</span>';
-      var proposed = r.proposedName
-        ? '<span class="newname">'+esc(r.proposedName)+'</span>'
-        : '<span class="no-fix">'+(r.reextractNeeded?'can\u2019t auto-fix name':'\u2014')+'</span>';
-      html += '<tr>'
-        + '<td class="row-check"><input type="checkbox" class="rowchk" data-i="'+i+'" onclick="updateActionButtons()"></td>'
-        + '<td><span class="badge '+r.severity+'">'+esc(r.severity)+'</span>'
-          + (r.live?'<span class="badge live">LIVE</span>':'')+'</td>'
-        + '<td><a href="'+esc(r.url)+'" target="_blank" class="fname">'+esc(r.name)+'</a>'
-          + '<div class="issues">'+tags+'</div></td>'
-        + '<td>'+proposed+'</td>'
-        + '<td class="no-fix">'+esc(r.folderName)+'</td>'
-        + '</tr>';
-    });
-    html += '</tbody></table></div>';
-    document.getElementById('qa-body').innerHTML = html;
-    updateActionButtons();
-  }
-  function selectedIndices() {
-    var out = [], cs = document.querySelectorAll('.rowchk:checked');
-    for (var i=0;i<cs.length;i++){ out.push(parseInt(cs[i].getAttribute('data-i'),10)); }
-    return out;
-  }
-  function toggleAll(on) {
-    var cs = document.querySelectorAll('.rowchk');
-    for (var i=0;i<cs.length;i++){ cs[i].checked = on; }
-    var hdr = document.getElementById('hdrCheck'); if (hdr) hdr.checked = on;
-    updateActionButtons();
-  }
-  function updateActionButtons() {
-    var idx = selectedIndices();
-    document.getElementById('trashBtn').disabled = idx.length===0;
-    var anyFix = idx.some(function(i){ return SCAN && SCAN.rows[i] && SCAN.rows[i].proposedName; });
-    document.getElementById('renameBtn').disabled = !anyFix;
-  }
-  function doTrash() {
-    var idx = selectedIndices(); if (!idx.length) return;
-    var live = idx.filter(function(i){ return SCAN.rows[i].live; }).length;
-    var msg = 'Move ' + idx.length + ' file(s) to Drive Trash (recoverable 30 days)?';
-    if (live) msg += '\n\n' + live + ' of these are in the LIVE folder.';
-    if (!confirm(msg)) return;
-    var ids = idx.map(function(i){ return SCAN.rows[i].id; });
-    setBusy(true);
-    google.script.run
-      .withSuccessHandler(function(results){
-        var ok = results.filter(function(r){return r.ok;}).length;
-        flash('Trashed ' + ok + ' of ' + results.length + ' file(s).'); runScan();
-      })
-      .withFailureHandler(function(err){ setBusy(false); flash('Trash failed: ' + (err.message||err)); })
-      .qaTrash(ids);
-  }
-  function doRename() {
-    var idx = selectedIndices().filter(function(i){ return SCAN.rows[i].proposedName; });
-    if (!idx.length) { flash('None of the selected rows have an auto-fixable name.'); return; }
-    var live = idx.filter(function(i){ return SCAN.rows[i].live; }).length;
-    var msg = 'Rename ' + idx.length + ' file(s) to their corrected names?';
-    if (live) msg += '\n\n' + live + ' of these are in the LIVE folder.';
-    if (!confirm(msg)) return;
-    var items = idx.map(function(i){ return { id:SCAN.rows[i].id, newName:SCAN.rows[i].proposedName }; });
-    setBusy(true);
-    google.script.run
-      .withSuccessHandler(function(results){
-        var ok = results.filter(function(r){return r.ok;}).length;
-        flash('Renamed ' + ok + ' of ' + results.length + ' file(s).'); runScan();
-      })
-      .withFailureHandler(function(err){ setBusy(false); flash('Rename failed: ' + (err.message||err)); })
-      .qaRename(items);
-  }
-  // ---------------- REVIEW PAGE ----------------
+  function flash(m){ var f=document.getElementById('flash'); f.textContent=m; f.classList.add('show'); setTimeout(function(){f.classList.remove('show');},3300); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  function setWho(email){ var w=document.getElementById('who'); if(w&&email) w.innerHTML='Signed in as<br><b>'+esc(email)+'</b>'; }
+  function fmtAmt(a,cur){ if(a===''||a==null) return ''; var s='$'+esc(String(a)); if(cur&&cur!=='USD') s+=' '+esc(cur); return s; }
+
+  // ==================== REVIEW ====================
   var REVIEW = null;
-  var ACTION_LABELS = {
-    save_attachment: 'Save attachment',
-    extract_body: 'Extract from body',
-    skip: 'Skip',
-    flag: 'Flag for review'
-  };
+  var ACTION_LABELS = { save_attachment:'Save attachment', extract_body:'Extract from body', skip:'Skip', flag:'Flag for review' };
 
-  function loadReview() {
-    var btn = document.getElementById('revLoad');
-    if (btn) { btn.disabled = true; btn.textContent = 'Loading\u2026'; }
-    document.getElementById('review-body').innerHTML =
-      '<div class="state"><div class="spinner"></div>'
-      + '<div class="headline" style="margin-top:14px">Loading the latest run</div></div>';
+  function loadReview(){
+    var b=document.getElementById('revLoad'); if(b){b.disabled=true;b.textContent='Loading\u2026';}
+    document.getElementById('review-body').innerHTML='<div class="state"><div class="spinner"></div><div class="headline" style="margin-top:12px">Loading the latest run</div></div>';
     try {
       google.script.run
-        .withSuccessHandler(function(res){
-          try { REVIEW = res; renderReview(res); }
-          catch (e) { reviewError('Could not render: ' + (e && e.message ? e.message : e)); }
-          if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
-        })
-        .withFailureHandler(function(err){
-          reviewError(err && err.message ? err.message : String(err));
-          if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
-        })
+        .withSuccessHandler(function(res){ try{REVIEW=res;renderReview(res);}catch(e){reviewErr(e.message||e);} if(b){b.disabled=false;b.textContent='Refresh';} })
+        .withFailureHandler(function(err){ reviewErr(err&&err.message?err.message:String(err)); if(b){b.disabled=false;b.textContent='Refresh';} })
         .reviewData();
-    } catch (e) {
-      reviewError('Could not start: ' + (e && e.message ? e.message : e));
-      if (btn) { btn.disabled = false; btn.textContent = 'Refresh'; }
-    }
+    } catch(e){ reviewErr('Could not start: '+(e.message||e)); if(b){b.disabled=false;b.textContent='Refresh';} }
   }
-
-  function reviewError(msg) {
-    document.getElementById('review-body').innerHTML =
-      '<div class="state"><div class="glyph">&#9888;</div>'
-      + '<div class="headline">Couldn\u2019t load</div>'
-      + '<div class="detail">' + esc(msg) + '</div>'
-      + '<button class="btn primary" onclick="loadReview()">Try again</button></div>';
-  }
-
-  function rerunEngine() {
-    var btn = document.getElementById('revRerun');
-    if (!confirm('Run the engine now? It will scan the last 7 days of remittance mail and process anything new.')) return;
-    if (btn) { btn.disabled = true; btn.textContent = 'Running\u2026'; }
+  function reviewErr(m){ document.getElementById('review-body').innerHTML='<div class="state"><div class="glyph">&#9888;</div><div class="headline">Couldn\u2019t load</div><div class="detail">'+esc(m)+'</div><button class="btn primary" onclick="loadReview()">Try again</button></div>'; }
+  function rerunEngine(){
+    var b=document.getElementById('revRerun');
+    if(!confirm('Run the agent now? It scans the last several days of remittance mail and processes anything new.')) return;
+    if(b){b.disabled=true;b.textContent='Running\u2026';}
     google.script.run
-      .withSuccessHandler(function(res){
-        flash('Engine run complete. ' + (res.summary || ''));
-        if (btn) { btn.disabled = false; btn.textContent = 'Re-run engine now'; }
-        loadReview();
-      })
-      .withFailureHandler(function(err){
-        flash('Run failed: ' + (err.message||err));
-        if (btn) { btn.disabled = false; btn.textContent = 'Re-run engine now'; }
-      })
+      .withSuccessHandler(function(res){ flash('Agent run complete. '+(res.summary||'')); if(b){b.disabled=false;b.textContent='Run agent now';} loadReview(); })
+      .withFailureHandler(function(err){ flash('Run failed: '+(err.message||err)); if(b){b.disabled=false;b.textContent='Run agent now';} })
       .reviewRerun();
   }
-
-  function renderReview(res) {
-    var who = document.getElementById('who');
-    if (who && res.user) who.innerHTML = 'Signed in<br>' + esc(res.user);
-    var modeEl = document.getElementById('revMode');
-    if (modeEl) {
-      var modeTxt = res.mode === 'live' ? 'LIVE mode \u2014 files also labeled in Gmail' : 'Shadow mode \u2014 files staged, Gmail untouched';
-      modeEl.innerHTML = esc(modeTxt) + (res.lastRunAt ? (' &middot; last run ' + esc(res.lastRunAt)) : '');
-    }
-
-    var tp = res.toProcess || [], sk = res.skipped || [];
-    document.getElementById('rv-process').textContent = tp.length;
-    document.getElementById('rv-saved').textContent = (res.counts.saved||0) + (res.counts.generated||0);
-    document.getElementById('rv-flag').textContent = res.counts.flagged||0;
-    document.getElementById('rv-skip').textContent = sk.length;
-    document.getElementById('revSummary').style.display = 'flex';
-
-    if (!tp.length && !sk.length) {
-      document.getElementById('review-body').innerHTML =
-        '<div class="state"><div class="glyph">&#128235;</div>'
-        + '<div class="headline">Nothing logged yet</div>'
-        + '<div class="detail">No remittances have been processed in the current window. '
-        + 'Click <b>Re-run engine now</b> to scan the inbox.</div></div>';
-      return;
-    }
-
-    // Reframe as an EXCEPTION QUEUE: surface only what the engine got stuck on at the
-    // top; everything it handled (saved, generated, skipped by rule) sits below as a
-    // confirmation list, not a to-do list.
-    var all = tp.concat(sk);
-    var needs = all.filter(needsIntervention_);
-    var handled = all.filter(function(x){ return !needsIntervention_(x); });
-
-    var html = '';
-    if (needs.length) {
-      html += '<div class="attention-banner">'
-        + '<b>' + needs.length + '</b> item' + (needs.length>1?'s':'') + ' need your attention \u2014 the engine couldn\u2019t handle these on its own.'
-        + '</div>';
-    }
-    html += reviewSection('Needs your attention', needs, false, true);
-    html += reviewSection('Handled automatically', handled, true, false);
-    document.getElementById('review-body').innerHTML = html;
+  function needsIntervention_(it){ if(it.outcome==='FLAGGED') return true; if(!it.payor||it.payor==='') return true; return false; }
+  function renderReview(res){
+    setWho(res.user);
+    var m=document.getElementById('revMode');
+    if(m){ var t=res.mode==='live'?'LIVE \u2014 files also labeled in Gmail':'Shadow \u2014 files staged, Gmail untouched'; m.innerHTML=esc(t)+(res.lastRunAt?(' &middot; last run '+esc(res.lastRunAt)):''); }
+    var all=(res.toProcess||[]).concat(res.skipped||[]);
+    var needs=all.filter(needsIntervention_), handled=all.filter(function(x){return !needsIntervention_(x);});
+    document.getElementById('rv-attn').textContent=needs.length;
+    document.getElementById('rv-saved').textContent=(res.counts.saved||0)+(res.counts.generated||0);
+    document.getElementById('rv-skip').textContent=(res.skipped||[]).length;
+    document.getElementById('rv-total').textContent=all.length;
+    document.getElementById('revStats').style.display='flex';
+    if(!all.length){ document.getElementById('review-body').innerHTML='<div class="state"><div class="glyph">&#128235;</div><div class="headline">Nothing logged yet</div><div class="detail">No remittances processed in the current window. Click <b>Run agent now</b> to scan the inbox.</div></div>'; return; }
+    var h='';
+    if(needs.length) h+='<div class="attention-banner"><b>'+needs.length+'</b> item'+(needs.length>1?'s':'')+' need your attention \u2014 the agent couldn\u2019t handle '+(needs.length>1?'these':'this')+' on its own.</div>';
+    h+=reviewSection('Needs your attention',needs,true);
+    h+=reviewSection('Handled automatically',handled,false);
+    document.getElementById('review-body').innerHTML=h;
   }
-
-  function reviewSection(title, items, isSkip, isAttention) {
-    if (!items.length) {
-      if (isAttention) {
-        // The good case: nothing needs the human.
-        return '<h3 class="sec-head">' + esc(title) + ' (0)</h3>'
-          + '<div class="allclear">&#10003; Nothing needs your attention \u2014 the engine handled everything.</div>';
-      }
-      return '<h3 class="sec-head">' + esc(title) + ' (0)</h3>'
-        + '<div class="no-fix" style="padding:0 2px 10px">None.</div>';
+  function reviewSection(title,items,isAttention){
+    if(!items.length){
+      if(isAttention) return '<div class="sec-head attention">'+esc(title)+' <span class="count">(0)</span></div><div class="allclear">&#10003; Nothing needs your attention \u2014 the agent handled everything.</div>';
+      return '<div class="sec-head">'+esc(title)+' <span class="count">(0)</span></div><div class="sub-cell" style="padding:0 2px 8px">None.</div>';
     }
-    var h = '<h3 class="sec-head' + (isAttention ? ' attention' : '') + '">' + esc(title) + ' (' + items.length + ')</h3>';
-    h += '<div class="panel"><table><thead><tr>'
-      + '<th>Payor / amount</th><th>Method</th><th>Subject</th><th>Invoices</th><th>Action</th></tr></thead><tbody>';
-    items.forEach(function(it, i){
-      var idx = (isSkip ? 's' : 'p') + i;
-      var amt = it.amount ? ('<span class="newname">$' + esc(String(it.amount)) + (it.currency && it.currency!=='USD' ? (' '+esc(it.currency)) : '') + '</span>') : '<span class="no-fix">\u2014</span>';
-      var payor = it.payor ? esc(it.payor) : '<span class="no-fix">(unresolved)</span>';
-      var outcomeBadge = outcomeBadge_(it.outcome);
-      var fileLink = it.fileUrl ? (' &middot; <a href="'+esc(it.fileUrl)+'" target="_blank" class="fname" style="font-size:11.5px">file</a>') : '';
-      var gmailLink = it.gmailUrl ? ('<a href="'+esc(it.gmailUrl)+'" target="_blank" class="fname" style="font-size:11.5px">open email</a>') : '';
-      h += '<tr>'
-        + '<td><div style="font-weight:600">' + payor + '</div>' + amt + ' ' + outcomeBadge + '</td>'
-        + '<td><span class="badge low">' + esc(it.method) + '</span></td>'
-        + '<td style="max-width:280px"><div class="fname" style="font-size:11.5px;color:var(--ink-soft)">' + esc(it.subject) + '</div>'
-          + '<div style="margin-top:3px">' + gmailLink + fileLink + '</div>'
-          + (it.note ? ('<div class="no-fix" style="margin-top:2px">' + esc(it.note) + '</div>') : '') + '</td>'
-        + '<td class="fname" style="font-size:11.5px">' + (it.invoices ? esc(it.invoices) : '<span class="no-fix">\u2014</span>') + '</td>'
-        + '<td>' + actionControl_(idx, it) + '</td>'
-        + '</tr>';
+    var h='<div class="sec-head'+(isAttention?' attention':'')+'">'+esc(title)+' <span class="count">('+items.length+')</span></div>';
+    h+='<div class="card"><table><thead><tr><th>Payor</th><th class="num">Amount</th><th>Method</th><th>Subject</th><th>Invoices</th><th>Action</th></tr></thead><tbody>';
+    items.forEach(function(it,i){
+      var idx=(isAttention?'a':'h')+i;
+      var payor=it.payor?('<span style="font-weight:600">'+esc(it.payor)+'</span>'):'<span class="sub-cell">(unresolved)</span>';
+      var amt=it.amount?('<span class="amount">'+fmtAmt(it.amount,it.currency)+'</span>'):'<span class="amount muted-amt">\u2014</span>';
+      var links=(it.gmailUrl?('<a href="'+esc(it.gmailUrl)+'" target="_blank" class="link">email</a>'):'')+(it.fileUrl?(' &middot; <a href="'+esc(it.fileUrl)+'" target="_blank" class="link">file</a>'):'');
+      h+='<tr><td>'+payor+'<div style="margin-top:2px">'+outcomeBadge_(it.outcome)+'</div></td>'
+        +'<td class="num">'+amt+'</td>'
+        +'<td><span class="badge b-gray">'+esc(it.method)+'</span></td>'
+        +'<td style="max-width:260px"><div class="sub-cell" style="color:var(--slate)">'+esc(it.subject)+'</div><div style="margin-top:3px">'+links+'</div>'+(it.note?('<div class="sub-cell" style="margin-top:2px">'+esc(it.note)+'</div>'):'')+'</td>'
+        +'<td class="mono">'+(it.invoices?esc(it.invoices):'<span class="sub-cell">\u2014</span>')+'</td>'
+        +'<td>'+actionControl_(idx,it)+'</td></tr>';
     });
-    h += '</tbody></table></div>';
-    return h;
+    h+='</tbody></table></div>'; return h;
   }
-
-  function outcomeBadge_(o) {
-    var map = { 'SAVED':'save', 'GENERATED':'save', 'FLAGGED':'flag', 'DUPLICATE':'dup', 'SKIPPED':'skip', 'ALREADY PROCESSED':'done' };
-    var cls = { 'save':'low', 'flag':'high', 'dup':'medium', 'skip':'low', 'done':'low' }[map[o]||'low'] || 'low';
-    var label = { 'SAVED':'saved', 'GENERATED':'generated', 'FLAGGED':'needs review', 'DUPLICATE':'duplicate', 'SKIPPED':'skipped', 'ALREADY PROCESSED':'already done' }[o] || String(o).toLowerCase();
-    return '<span class="badge ' + cls + '">' + esc(label) + '</span>';
+  function outcomeBadge_(o){
+    var map={'SAVED':['b-green','saved'],'GENERATED':['b-green','generated'],'FLAGGED':['b-red','needs review'],'DUPLICATE':['b-amber','duplicate'],'SKIPPED':['b-gray','skipped'],'ALREADY PROCESSED':['b-gray','already done']};
+    var e=map[o]||['b-gray',String(o).toLowerCase()]; return '<span class="badge '+e[0]+'">'+esc(e[1])+'</span>';
   }
-
-  // A row needs the human only if the engine got stuck: it couldn't classify it
-  // (FLAGGED) or couldn't resolve a payor name. Everything else is already handled.
-  function needsIntervention_(it) {
-    if (it.outcome === 'FLAGGED') return true;
-    if (!it.payor || it.payor === '') return true;
-    return false;
+  function actionControl_(idx,it){
+    if(!needsIntervention_(it)) return '<span class="sub-cell">\u2014</span>';
+    var opts=['save_attachment','extract_body','skip','flag'];
+    var sel='<select class="inp" style="padding:5px 7px;font-size:12px" onchange="onActionChange(\''+idx+'\',this.value)">';
+    opts.forEach(function(o){ sel+='<option value="'+o+'"'+(o===it.action?' selected':'')+'>'+ACTION_LABELS[o]+'</option>'; });
+    sel+='</select>';
+    return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px">'+sel+'<button class="btn primary sm" onclick="openRuleForm(\''+idx+'\')">Create rule</button></div>';
   }
-
-  function actionControl_(idx, it) {
-    // Handled rows: no rule prompt. Show a quiet, optional "change / rule" affordance
-    // only if the user wants to override — but do not present it as a required action.
-    if (!needsIntervention_(it)) {
-      return '<span class="no-fix">\u2014</span>';
-    }
-    // Stuck rows: this is where the human teaches the engine. Offer the action dropdown
-    // and the Create rule button prominently.
-    var opts = ['save_attachment','extract_body','skip','flag'];
-    var sel = '<select class="btn" style="padding:6px 8px;font-weight:500" onchange="onActionChange(\''+idx+'\', this.value)">';
-    opts.forEach(function(o){
-      sel += '<option value="'+o+'"'+(o===it.action?' selected':'')+'>'+ACTION_LABELS[o]+'</option>';
-    });
-    sel += '</select>';
-    var ruleBtn = '<button class="btn primary" style="padding:6px 10px;margin-left:6px" onclick="openRuleForm(\''+idx+'\')">Create rule</button>';
-    return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">' + sel + ruleBtn + '</div>';
-  }
-
-  function itemByIdx(idx) {
-    var isSkip = idx.charAt(0) === 's';
-    var i = parseInt(idx.slice(1), 10);
-    return (isSkip ? REVIEW.skipped : REVIEW.toProcess)[i];
-  }
-
-  function onActionChange(idx, val) {
-    var it = itemByIdx(idx);
-    // A one-off action change is advisory in shadow mode; the durable fix is a rule.
-    flash('Action for "' + (it.payor || it.subject).slice(0,40) + '" set to ' + ACTION_LABELS[val] + '. Create a rule to make it stick.');
-  }
-
-  function openRuleForm(idx) {
-    var it = itemByIdx(idx);
-    var suggested = it.payor || '';
-    var shortName = prompt('Create a rule for this payor.\n\nShort name for the filename (e.g. GSK, BMS, Merck):', suggested);
-    if (shortName === null) return;
-    var action = prompt('How should this payor always be handled?\n\nType one of:\n  save_attachment\n  extract_body\n  skip\n  flag', it.action || 'save_attachment');
-    if (action === null) return;
-    action = action.trim();
-    if (['save_attachment','extract_body','skip','flag'].indexOf(action) === -1) {
-      flash('Rule not created: action must be save_attachment, extract_body, skip, or flag.');
-      return;
-    }
-    // Match on a distinctive word from the subject by default (works with group From-rewrites).
-    var kw = prompt('Match this rule when the SUBJECT contains (a distinctive word, e.g. the payor name):', firstSubjectKeyword(it));
-    if (kw === null) return;
+  function itemByIdx(idx){ var att=idx.charAt(0)==='a'; var i=parseInt(idx.slice(1),10); var all=(REVIEW.toProcess||[]).concat(REVIEW.skipped||[]); var needs=all.filter(needsIntervention_), handled=all.filter(function(x){return !needsIntervention_(x);}); return att?needs[i]:handled[i]; }
+  function onActionChange(idx,val){ var it=itemByIdx(idx); flash('Action for "'+((it.payor||it.subject)||'').slice(0,36)+'" set to '+ACTION_LABELS[val]+'. Create a rule to make it stick.'); }
+  function openRuleForm(idx){
+    var it=itemByIdx(idx);
+    var shortName=prompt('Create a rule for this payor.\n\nShort name for the filename (e.g. GSK, BMS, Merck):', it.payor||'');
+    if(shortName===null) return;
+    var action=prompt('How should this payor always be handled?\n\nType one of:\n  save_attachment\n  extract_body\n  skip\n  flag', it.action||'save_attachment');
+    if(action===null) return; action=action.trim();
+    if(['save_attachment','extract_body','skip','flag'].indexOf(action)===-1){ flash('Rule not created: action must be save_attachment, extract_body, skip, or flag.'); return; }
+    var kw=prompt('Match this rule when the SUBJECT contains (a distinctive word, e.g. the payor name):', firstKw(it));
+    if(kw===null) return;
     google.script.run
-      .withSuccessHandler(function(res){
-        if (res.ok) flash('Rule created. It applies on the next engine run (' + res.count + ' local rule(s)).');
-        else flash('Rule failed: ' + res.error);
-      })
-      .withFailureHandler(function(err){ flash('Rule failed: ' + (err.message||err)); })
-      .reviewCreateRule({ match: { subject_contains: [kw] }, action: action, short_name: shortName });
+      .withSuccessHandler(function(res){ if(res.ok) flash('Rule created \u2014 applies on the next run ('+res.count+' local rule(s)).'); else flash('Rule failed: '+res.error); })
+      .withFailureHandler(function(err){ flash('Rule failed: '+(err.message||err)); })
+      .reviewCreateRule({ match:{subject_contains:[kw]}, action:action, short_name:shortName });
   }
+  function firstKw(it){ if(it.payor) return it.payor.split(/[,\s]+/)[0]; var w=(it.subject||'').split(/\s+/).filter(function(x){return x.length>3;}); return w.length?w[0]:''; }
 
-  function firstSubjectKeyword(it) {
-    if (it.payor) return it.payor.split(/[,\s]+/)[0];
-    var w = (it.subject||'').split(/\s+/).filter(function(x){ return x.length > 3; });
-    return w.length ? w[0] : '';
-  }
-
-  // Shell is painted by the HTML above. No on-load scan takeover (that was the blank-page cause).
-  // Populate the signed-in name non-destructively via a PUBLIC wrapper (no trailing underscore).
-  window.addEventListener('load', function(){
+  // ==================== QA CLEANUP ====================
+  var SCAN=null;
+  function runScan(){
+    var b=document.getElementById('scanBtn'); if(b){b.disabled=true;b.textContent='Scanning\u2026';}
+    document.getElementById('qa-body').innerHTML='<div class="state"><div class="spinner"></div><div class="headline" style="margin-top:12px">Scanning folders</div><div class="detail">Reading staging and live \u2014 a few seconds.</div></div>';
     try {
-      google.script.run.withSuccessHandler(function(email){
-        var who = document.getElementById('who');
-        if (who && email) who.innerHTML = 'Signed in<br>' + esc(email);
-      }).getSignedInEmail();
-    } catch (e) { /* header name is cosmetic */ }
+      google.script.run
+        .withSuccessHandler(function(res){ try{SCAN=res;renderScan(res);}catch(e){qaErr(e.message||e);} if(b){b.disabled=false;b.textContent='Rescan';} })
+        .withFailureHandler(function(err){ qaErr(err&&err.message?err.message:String(err)); if(b){b.disabled=false;b.textContent='Scan folders';} })
+        .qaScan();
+    } catch(e){ qaErr('Could not start: '+(e.message||e)); if(b){b.disabled=false;b.textContent='Scan folders';} }
+  }
+  function qaErr(m){ document.getElementById('qa-body').innerHTML='<div class="state"><div class="glyph">&#9888;</div><div class="headline">Scan couldn\u2019t finish</div><div class="detail">'+esc(m)+'</div><button class="btn primary" onclick="runScan()">Try again</button></div>'; }
+  function renderScan(res){
+    setWho(res.user);
+    var rows=res.rows||[];
+    document.getElementById('s-total').textContent=rows.length;
+    document.getElementById('s-high').textContent=rows.filter(function(r){return r.severity==='high';}).length;
+    document.getElementById('s-live').textContent=rows.filter(function(r){return r.live;}).length;
+    document.getElementById('s-fix').textContent=rows.filter(function(r){return r.proposedName;}).length;
+    document.getElementById('qaStats').style.display='flex';
+    var en=rows.length>0; ['selAll','selNone'].forEach(function(id){document.getElementById(id).disabled=!en;});
+    if(!rows.length){ document.getElementById('qa-body').innerHTML='<div class="state"><div class="glyph" style="color:var(--green)">&#10003;</div><div class="headline">Everything looks clean</div><div class="detail">No naming or invoice issues as of '+esc(res.generatedAt)+'.</div></div>'; qaUpdateBtns(); return; }
+    var h='<div class="card"><table><thead><tr><th style="width:34px"><input type="checkbox" id="hdrCheck" onclick="qaToggleAll(this.checked)"></th><th>Severity</th><th>File</th><th>Proposed fix</th><th>Folder</th></tr></thead><tbody>';
+    rows.forEach(function(r,i){
+      var tags=r.issues.map(function(x){return '<span class="badge b-gray" style="margin:2px 3px 0 0">'+esc(x)+'</span>';}).join('');
+      if(r.reextractNeeded) tags+='<span class="badge b-red" style="margin:2px 3px 0 0">re-extraction needed</span>';
+      var prop=r.proposedName?('<span class="mono ok">'+esc(r.proposedName)+'</span>'):('<span class="sub-cell">'+(r.reextractNeeded?'can\u2019t auto-fix name':'\u2014')+'</span>');
+      var sevmap={'high':'b-red','medium':'b-amber','low':'b-gray'};
+      h+='<tr><td><input type="checkbox" class="rowchk" data-i="'+i+'" onclick="qaUpdateBtns()"></td>'
+        +'<td><span class="badge '+(sevmap[r.severity]||'b-gray')+'">'+esc(r.severity)+'</span>'+(r.live?' <span class="badge b-violet">LIVE</span>':'')+'</td>'
+        +'<td><a href="'+esc(r.url)+'" target="_blank" class="mono link">'+esc(r.name)+'</a><div style="margin-top:4px">'+tags+'</div></td>'
+        +'<td>'+prop+'</td><td class="sub-cell">'+esc(r.folderName)+'</td></tr>';
+    });
+    h+='</tbody></table></div>'; document.getElementById('qa-body').innerHTML=h; qaUpdateBtns();
+  }
+  function qaSelected(){ var o=[],c=document.querySelectorAll('.rowchk:checked'); for(var i=0;i<c.length;i++)o.push(parseInt(c[i].getAttribute('data-i'),10)); return o; }
+  function qaToggleAll(on){ var c=document.querySelectorAll('.rowchk'); for(var i=0;i<c.length;i++)c[i].checked=on; var h=document.getElementById('hdrCheck'); if(h)h.checked=on; qaUpdateBtns(); }
+  function qaUpdateBtns(){ var idx=qaSelected(); document.getElementById('trashBtn').disabled=idx.length===0; document.getElementById('renameBtn').disabled=!idx.some(function(i){return SCAN&&SCAN.rows[i]&&SCAN.rows[i].proposedName;}); }
+  function qaBusy(b){ ['scanBtn','trashBtn','renameBtn','selAll','selNone'].forEach(function(id){var e=document.getElementById(id);if(e)e.disabled=b;}); }
+  function doTrash(){
+    var idx=qaSelected(); if(!idx.length) return;
+    var live=idx.filter(function(i){return SCAN.rows[i].live;}).length;
+    var msg='Move '+idx.length+' file(s) to Drive Trash (recoverable 30 days)?'; if(live) msg+='\n\n'+live+' of these are in the LIVE folder.';
+    if(!confirm(msg)) return;
+    qaBusy(true);
+    google.script.run.withSuccessHandler(function(r){ flash('Trashed '+r.filter(function(x){return x.ok;}).length+' of '+r.length+'.'); runScan(); })
+      .withFailureHandler(function(e){ qaBusy(false); flash('Trash failed: '+(e.message||e)); }).qaTrash(idx.map(function(i){return SCAN.rows[i].id;}));
+  }
+  function doRename(){
+    var idx=qaSelected().filter(function(i){return SCAN.rows[i].proposedName;}); if(!idx.length){ flash('None of the selected rows have an auto-fixable name.'); return; }
+    var live=idx.filter(function(i){return SCAN.rows[i].live;}).length;
+    var msg='Rename '+idx.length+' file(s) to their corrected names?'; if(live) msg+='\n\n'+live+' of these are in the LIVE folder.';
+    if(!confirm(msg)) return;
+    qaBusy(true);
+    google.script.run.withSuccessHandler(function(r){ flash('Renamed '+r.filter(function(x){return x.ok;}).length+' of '+r.length+'.'); runScan(); })
+      .withFailureHandler(function(e){ qaBusy(false); flash('Rename failed: '+(e.message||e)); }).qaRename(idx.map(function(i){return {id:SCAN.rows[i].id,newName:SCAN.rows[i].proposedName};}));
+  }
+
+  // ==================== RUN LOG ====================
+  var RUNLOG=null;
+  function loadLog(){
+    var b=document.getElementById('logLoad'); if(b){b.disabled=true;b.textContent='Loading\u2026';}
+    document.getElementById('log-body').innerHTML='<div class="state"><div class="spinner"></div><div class="headline" style="margin-top:12px">Loading run history</div></div>';
+    google.script.run
+      .withSuccessHandler(function(res){ RUNLOG=res; renderLog(res); if(b){b.disabled=false;b.textContent='Refresh';} })
+      .withFailureHandler(function(err){ document.getElementById('log-body').innerHTML='<div class="state"><div class="glyph">&#9888;</div><div class="headline">Couldn\u2019t load</div><div class="detail">'+esc(err.message||err)+'</div></div>'; if(b){b.disabled=false;b.textContent='Refresh';} })
+      .getRunLog(40);
+  }
+  function renderLog(res){
+    setWho(res.user);
+    var meta=document.getElementById('logMeta'); if(meta) meta.textContent='As of '+esc(res.generatedAt);
+    var h='';
+    var runs=res.runs||[];
+    h+='<div class="card"><div class="card-head">Agent runs</div>';
+    if(!runs.length){ h+='<div class="card-body"><div class="sub-cell">No runs recorded yet.</div></div>'; }
+    else {
+      h+='<table><thead><tr><th>Run at</th><th class="num">Seen</th><th class="num">New</th><th>Rules</th><th>Outcomes</th><th>Status</th></tr></thead><tbody>';
+      runs.forEach(function(r){
+        var status=r.error?('<span class="badge b-red">error</span>'):('<span class="badge b-green">ok</span>');
+        h+='<tr><td class="mono">'+esc(r.at)+'</td><td class="num mono">'+esc(String(r.inWindow||0))+'</td><td class="num mono">'+esc(String(r.newLogged||0))+'</td>'
+          +'<td class="sub-cell">v'+esc(String(r.rulesVersion||'?'))+' &middot; '+esc(String(r.rulesLoaded||0))+'</td>'
+          +'<td class="sub-cell">'+esc(r.outcomes||'')+'</td><td>'+status+(r.error?('<div class="sub-cell" style="color:var(--red);margin-top:2px">'+esc(r.error)+'</div>'):'')+'</td></tr>';
+      });
+      h+='</tbody></table>';
+    }
+    h+='</div>';
+    var saved=res.saved||[];
+    h+='<div class="card"><div class="card-head">Recently saved files</div>';
+    if(!saved.length){ h+='<div class="card-body"><div class="sub-cell">No files saved yet.</div></div>'; }
+    else {
+      h+='<table><thead><tr><th>Saved at</th><th>Payor</th><th class="num">Amount</th><th>File</th><th>Invoices</th></tr></thead><tbody>';
+      saved.forEach(function(s){
+        h+='<tr><td class="mono">'+esc(s.at)+'</td><td style="font-weight:600">'+esc(s.payor||'')+'</td>'
+          +'<td class="num"><span class="amount">'+fmtAmt(s.amount,s.currency)+'</span></td>'
+          +'<td>'+(s.fileUrl?('<a href="'+esc(s.fileUrl)+'" target="_blank" class="mono link">'+esc(s.filename||'file')+'</a>'):('<span class="mono">'+esc(s.filename||'')+'</span>'))+'</td>'
+          +'<td class="mono">'+esc(s.invoices||'')+'</td></tr>';
+      });
+      h+='</tbody></table>';
+    }
+    h+='</div>';
+    document.getElementById('log-body').innerHTML=h;
+  }
+
+  // ==================== SETTINGS ====================
+  var SETTINGS=null;
+  function loadSettings(){
+    document.getElementById('settings-body').innerHTML='<div class="state"><div class="spinner"></div><div class="headline" style="margin-top:12px">Loading settings</div></div>';
+    google.script.run
+      .withSuccessHandler(function(res){ SETTINGS=res; renderSettings(res); })
+      .withFailureHandler(function(err){ document.getElementById('settings-body').innerHTML='<div class="state"><div class="glyph">&#9888;</div><div class="headline">Couldn\u2019t load</div><div class="detail">'+esc(err.message||err)+'</div></div>'; })
+      .getSettings();
+  }
+  function renderSettings(s){
+    setWho(s.user);
+    var modePill=s.mode==='live'?'<span class="pill live">LIVE</span>':'<span class="pill shadow">SHADOW</span>';
+    var h='';
+    // Card 1: run behavior
+    h+='<div class="card"><div class="card-head">How the agent runs</div><div class="card-body">';
+    h+='<div class="set-row"><div class="set-label"><div class="t">Mode '+modePill+'</div><div class="d">Shadow saves files to staging and never touches Gmail. Live also labels processed emails.</div></div>'
+      +'<div class="set-control"><div class="mode-toggle">'
+      +'<button id="mode-shadow" class="'+(s.mode==='shadow'?'on-shadow':'')+'" onclick="setMode(\'shadow\')">Shadow</button>'
+      +'<button id="mode-live" class="'+(s.mode==='live'?'on-live':'')+'" onclick="setMode(\'live\')">Live</button>'
+      +'</div><div class="sub-cell" id="mode-note" style="margin-top:7px"></div></div></div>';
+    h+='<div class="set-row"><div class="set-label"><div class="t">Lookback window</div><div class="d">How many days of recent mail each run scans.</div></div>'
+      +'<div class="set-control"><input class="inp" id="set-lookback" type="number" min="1" max="60" value="'+esc(String(s.lookbackDays))+'"> <span class="sub-cell">days (default '+esc(String(s.defaults.lookbackDays))+')</span></div></div>';
+    h+='<div class="set-row"><div class="set-label"><div class="t">Max per run</div><div class="d">Cap on how many emails one run processes; the rest roll to the next cycle.</div></div>'
+      +'<div class="set-control"><input class="inp" id="set-max" type="number" min="1" max="100" value="'+esc(String(s.maxPerRun))+'"> <span class="sub-cell">emails (default '+esc(String(s.defaults.maxPerRun))+')</span></div></div>';
+    h+='<div style="margin-top:14px"><button class="btn primary" onclick="saveSettingsUI()">Save changes</button> <span class="sub-cell" style="margin-left:8px">Runs every '+esc(String(s.triggerMinutes))+' min automatically.</span></div>';
+    h+='</div></div>';
+    // Card 2: rules
+    h+='<div class="card"><div class="card-head">Rules</div><div class="card-body">';
+    h+='<div class="kv"><div class="k">Shared rules (GitHub)</div><div class="v">version '+esc(String(s.rulesVersion))+' &middot; '+esc(String(s.rulesCount))+' rules</div></div>';
+    h+='<div style="margin:8px 0 14px"><button class="btn sm" onclick="refreshRules()">Refresh shared rules now</button></div>';
+    h+='<div class="sec-head" style="margin:6px 0 4px">Rules you created here <span class="count">('+(s.localRules||[]).length+')</span></div>';
+    if(!(s.localRules||[]).length){ h+='<div class="sub-cell">None yet. Create rules from the Review page when the agent flags a payor it doesn\u2019t recognize.</div>'; }
+    else { (s.localRules||[]).forEach(function(r){
+      var match=r.match&&r.match.subject_contains?('subject contains "'+esc(r.match.subject_contains.join(', '))+'"'):(r.match&&r.match.from_contains?('from contains "'+esc(r.match.from_contains.join(', '))+'"'):'any');
+      h+='<div class="rule-item"><span class="badge b-brand">'+esc(r.action)+'</span><span style="font-weight:600">'+esc(r.short_name||'(no name)')+'</span><span class="sub-cell">'+match+'</span><span class="spacer"></span><button class="btn sm ghost" onclick="delRule(\''+esc(r.id)+'\')">Remove</button></div>';
+    }); }
+    h+='</div></div>';
+    // Card 3: connection facts
+    h+='<div class="card"><div class="card-head">Connection</div><div class="card-body">';
+    h+='<div class="kv"><div class="k">Mailbox</div><div class="v">'+esc(s.groupAddress)+'</div></div>';
+    h+='<div class="kv"><div class="k">Marker label</div><div class="v">'+esc(s.markerLabel)+'</div></div>';
+    h+='<div class="kv"><div class="k">Signed in as</div><div class="v">'+esc(s.user)+'</div></div>';
+    h+='</div></div>';
+    document.getElementById('settings-body').innerHTML=h;
+    pendingMode=s.mode; updateModeNote();
+  }
+  var pendingMode='shadow';
+  function setMode(m){
+    pendingMode=m;
+    document.getElementById('mode-shadow').className=(m==='shadow'?'on-shadow':'');
+    document.getElementById('mode-live').className=(m==='live'?'on-live':'');
+    updateModeNote();
+  }
+  function updateModeNote(){
+    var n=document.getElementById('mode-note'); if(!n) return;
+    if(pendingMode==='live') n.innerHTML='<span style="color:var(--violet)">Live mode will label processed emails in the real inbox. You\u2019ll confirm when you save.</span>';
+    else n.innerHTML='Shadow mode is safe: files are staged, Gmail is left untouched.';
+  }
+  function saveSettingsUI(){
+    var payload={ mode:pendingMode, lookbackDays:document.getElementById('set-lookback').value, maxPerRun:document.getElementById('set-max').value, confirmLive:false };
+    if(pendingMode==='live'){
+      if(!confirm('Switch to LIVE mode?\n\nThe agent will start labeling processed emails in the real remittance inbox. Files were already being saved either way. Continue?')) return;
+      payload.confirmLive=true;
+    }
+    google.script.run
+      .withSuccessHandler(function(res){ if(res.ok){ flash('Settings saved'+(res.changed&&res.changed.length?(' ('+res.changed.join(', ')+')'):'')+'.'); loadSettings(); } else flash('Not saved: '+res.error); })
+      .withFailureHandler(function(err){ flash('Save failed: '+(err.message||err)); })
+      .saveSettings(payload);
+  }
+  function refreshRules(){
+    flash('Refreshing shared rules\u2026');
+    google.script.run.withSuccessHandler(function(res){ if(res.ok) flash('Rules refreshed: v'+res.version+', '+res.count+' rules ('+res.source+').'); else flash('Refresh failed: '+res.error); loadSettings(); })
+      .withFailureHandler(function(err){ flash('Refresh failed: '+(err.message||err)); }).refreshRulesNow();
+  }
+  function delRule(id){
+    if(!confirm('Remove this rule? The agent will stop applying it on the next run.')) return;
+    google.script.run.withSuccessHandler(function(res){ flash('Rule removed.'); loadSettings(); })
+      .withFailureHandler(function(err){ flash('Remove failed: '+(err.message||err)); }).deleteLocalRule(id);
+  }
+
+  // Header name on load (public wrapper — no trailing underscore).
+  window.addEventListener('load', function(){
+    try { google.script.run.withSuccessHandler(setWho).getSignedInEmail(); } catch(e){}
+    // Review is the default tab; load it.
+    loadReview();
   });
 </script>
 </body>
