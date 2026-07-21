@@ -281,3 +281,166 @@ function logQaAction_(kind, results) {
 function getSignedInEmail() {
   return getActiveUser_();
 }
+
+// ============================================================
+//  REVIEW PAGE — what the engine pulled, the method it used,
+//  and per-item controls. Reads the log's Messages + Saved tabs.
+// ============================================================
+
+/**
+ * Assembles the Review view from the most recent run's logged rows.
+ * Groups into toProcess (saved / generated / flagged / duplicate) and
+ * skipped. READ ONLY — changing an action or creating a rule is a
+ * separate explicit call.
+ *
+ * Returns { generatedAt, user, mode, lastRunAt, toProcess:[...], skipped:[...], counts:{...} }
+ */
+function reviewData() {
+  const log = getLog_();
+  const tz = Session.getScriptTimeZone();
+
+  // Column layout of the Messages tab (see MESSAGE_HEADERS in the engine):
+  // 0 Logged at | 1 Email date | 2 Found in | 3 From | 4 Subject | 5 PDF attached
+  // 6 Verdict | 7 Rule matched | 8 Payor short name | 9 Outcome | 10 Note
+  // 11 Message ID | 12 Open in Gmail | 13 Amount | 14 Currency | 15 Invoices | 16 Filename | 17 File link
+  const msgs = log.messages;
+  const last = msgs.getLastRow();
+  const toProcess = [];
+  const skipped = [];
+  const counts = { saved:0, generated:0, flagged:0, duplicate:0, skipped:0, already:0 };
+
+  if (last >= 2) {
+    // Most recent first; cap at the last 200 logged rows so the page stays fast.
+    const startRow = Math.max(2, last - 199);
+    const rng = msgs.getRange(startRow, 1, last - startRow + 1, 18).getValues();
+    for (let i = rng.length - 1; i >= 0; i--) {
+      const r = rng[i];
+      const outcome = String(r[9] || '').toUpperCase();
+      const item = {
+        loggedAt: fmtCell_(r[0], tz),
+        emailDate: fmtCell_(r[1], tz),
+        foundIn: r[2] || '',
+        from: r[3] || '',
+        subject: r[4] || '',
+        hasPdf: String(r[5] || '').toLowerCase() === 'yes',
+        verdict: r[6] || '',
+        rule: r[7] || '',
+        payor: r[8] || '',
+        outcome: outcome,
+        note: r[10] || '',
+        messageId: r[11] || '',
+        gmailUrl: r[12] || '',
+        amount: r[13] || '',
+        currency: r[14] || '',
+        invoices: r[15] || '',
+        filename: r[16] || '',
+        fileUrl: r[17] || '',
+        // Method, in the finance-user vocabulary from the old app.
+        method: methodLabel_(r[6], r[5]),
+        // The action currently in effect, and what it can be changed to.
+        action: outcomeToAction_(outcome),
+      };
+
+      if (outcome === 'SKIPPED' || outcome === 'ALREADY PROCESSED') {
+        skipped.push(item);
+        if (outcome === 'SKIPPED') counts.skipped++; else counts.already++;
+      } else {
+        toProcess.push(item);
+        if (outcome === 'SAVED') counts.saved++;
+        else if (outcome === 'GENERATED') counts.generated++;
+        else if (outcome === 'DUPLICATE') counts.duplicate++;
+        else counts.flagged++;
+      }
+    }
+  }
+
+  // Last run summary from the Runs tab.
+  let lastRunAt = '', lastRunSummary = '';
+  const runs = log.runs;
+  const lr = runs.getLastRow();
+  if (lr >= 2) {
+    const rr = runs.getRange(lr, 1, 1, 8).getValues()[0];
+    lastRunAt = fmtCell_(rr[0], tz);
+    lastRunSummary = rr[7] || '';
+  }
+
+  return {
+    generatedAt: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm'),
+    user: getActiveUser_(),
+    mode: (typeof CONFIG !== 'undefined' && CONFIG.MODE) ? CONFIG.MODE : 'shadow',
+    lastRunAt: lastRunAt,
+    lastRunSummary: lastRunSummary,
+    toProcess: toProcess,
+    skipped: skipped,
+    counts: counts,
+  };
+}
+
+/** Human method label in the old app's vocabulary. */
+function methodLabel_(verdict, hasPdf) {
+  const v = String(verdict || '').toLowerCase();
+  if (v.indexOf('save_attachment') !== -1 || v.indexOf('save attachment') !== -1) return 'Save attachment';
+  if (v.indexOf('extract_body') !== -1 || v.indexOf('extract body') !== -1) return 'Extract from body';
+  if (v.indexOf('skip') !== -1) return 'Skip';
+  if (v.indexOf('flag') !== -1) return 'Flag for review';
+  return String(hasPdf).toLowerCase() === 'yes' ? 'Save attachment' : 'Extract from body';
+}
+
+/** Map a logged outcome to the currently-effective action key. */
+function outcomeToAction_(outcome) {
+  switch (String(outcome).toUpperCase()) {
+    case 'SAVED': return 'save_attachment';
+    case 'GENERATED': return 'extract_body';
+    case 'SKIPPED': return 'skip';
+    case 'ALREADY PROCESSED': return 'skip';
+    case 'DUPLICATE': return 'skip';
+    default: return 'flag';
+  }
+}
+
+/**
+ * Trigger the engine on demand (the "Re-run" control). Runs the same
+ * scan the 10-minute trigger runs. Returns the fresh summary.
+ */
+function reviewRerun() {
+  runRemittanceScan();          // the engine's entry point
+  const log = getLog_();
+  const lr = log.runs.getLastRow();
+  let summary = '';
+  if (lr >= 2) summary = log.runs.getRange(lr, 8).getValue() || '';
+  return { ok: true, summary: summary, at: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm') };
+}
+
+/**
+ * Create a rule from the Review page (the old app's "Create Rule").
+ * Adds/updates a local override in Script Properties that the engine
+ * layers on top of the GitHub rules on the next run. This does NOT push
+ * to GitHub — it's a per-deployment override the user controls.
+ * payload: { match:{subject_contains?:[], from_contains?:[]}, action, short_name }
+ */
+function reviewCreateRule(payload) {
+  try {
+    if (!payload || !payload.action) throw new Error('missing action');
+    const props = PropertiesService.getScriptProperties();
+    const raw = props.getProperty('LOCAL_RULES');
+    const list = raw ? JSON.parse(raw) : [];
+    list.push({
+      id: 'local-' + Date.now(),
+      match: payload.match || {},
+      action: payload.action,
+      short_name: payload.short_name || '',
+      created: new Date().toISOString(),
+      createdBy: getActiveUser_(),
+    });
+    props.setProperty('LOCAL_RULES', JSON.stringify(list));
+    return { ok: true, count: list.length };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+/** Format a sheet cell that may be a Date or a string. */
+function fmtCell_(v, tz) {
+  if (v instanceof Date) return Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm');
+  return v == null ? '' : String(v);
+}
