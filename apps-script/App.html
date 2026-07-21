@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg:#f6f7f9; --card:#fff; --line:#e4e7eb; --ink:#1a1f29; --muted:#6b7280;
+    --brand:#1f5fbf; --brand-dark:#17478f; --high:#c0392b; --high-bg:#fdecea;
+    --med:#b8860b; --med-bg:#fdf6e3; --live:#8e44ad; --live-bg:#f5eefa;
+    --ok:#1e8e4e; --danger:#c0392b;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px; }
+  header { background:var(--card); border-bottom:1px solid var(--line); padding:14px 22px;
+    display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:10; }
+  header h1 { font-size:16px; margin:0; font-weight:700; }
+  header .who { margin-left:auto; color:var(--muted); font-size:12px; }
+  nav { display:flex; gap:4px; padding:0 18px; background:var(--card); border-bottom:1px solid var(--line); }
+  nav button { background:none; border:none; padding:12px 16px; cursor:pointer; font-size:13px;
+    color:var(--muted); border-bottom:2px solid transparent; }
+  nav button.active { color:var(--brand); border-bottom-color:var(--brand); font-weight:600; }
+  nav button:disabled { opacity:.4; cursor:default; }
+  main { padding:22px; max-width:1100px; margin:0 auto; }
+  .toolbar { display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+  .btn { border:1px solid var(--line); background:var(--card); border-radius:7px; padding:8px 14px;
+    cursor:pointer; font-size:13px; font-weight:600; color:var(--ink); }
+  .btn:hover { border-color:#c8ccd2; }
+  .btn.primary { background:var(--brand); color:#fff; border-color:var(--brand); }
+  .btn.primary:hover { background:var(--brand-dark); }
+  .btn.danger { background:var(--danger); color:#fff; border-color:var(--danger); }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .muted { color:var(--muted); }
+  .summary { display:flex; gap:18px; margin-bottom:14px; flex-wrap:wrap; }
+  .summary .stat { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 14px; min-width:96px; }
+  .summary .stat .n { font-size:20px; font-weight:700; }
+  .summary .stat .l { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line);
+    border-radius:8px; overflow:hidden; }
+  th,td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); background:#fafbfc; }
+  tr:last-child td { border-bottom:none; }
+  .fname { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:12.5px; word-break:break-all; }
+  .arrow { color:var(--muted); }
+  .newname { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:12.5px; color:var(--ok); word-break:break-all; }
+  .badge { display:inline-block; padding:2px 8px; border-radius:11px; font-size:11px; font-weight:600; white-space:nowrap; }
+  .badge.high { background:var(--high-bg); color:var(--high); }
+  .badge.medium { background:var(--med-bg); color:var(--med); }
+  .badge.low { background:#eef1f4; color:var(--muted); }
+  .badge.live { background:var(--live-bg); color:var(--live); margin-left:6px; }
+  .issues { font-size:12px; color:var(--muted); margin-top:4px; }
+  .issues .tag { display:inline-block; background:#eef1f4; border-radius:4px; padding:1px 6px; margin:2px 4px 0 0; }
+  .issues .tag.reextract { background:var(--high-bg); color:var(--high); }
+  .empty { text-align:center; padding:48px 20px; color:var(--muted); }
+  .empty .big { font-size:40px; margin-bottom:8px; }
+  .row-check { width:34px; text-align:center; }
+  .loading { text-align:center; padding:40px; color:var(--muted); }
+  .spinner { display:inline-block; width:20px; height:20px; border:3px solid var(--line);
+    border-top-color:var(--brand); border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .note { background:#eef4ff; border:1px solid #cfe0fb; color:#1c4a8f; border-radius:8px;
+    padding:10px 14px; font-size:13px; margin-bottom:16px; }
+  .flash { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink);
+    color:#fff; padding:12px 20px; border-radius:8px; font-size:13px; box-shadow:0 6px 24px rgba(0,0,0,.25);
+    opacity:0; transition:opacity .2s; z-index:50; max-width:80%; }
+  .flash.show { opacity:1; }
+  .placeholder { background:var(--card); border:1px dashed var(--line); border-radius:8px;
+    padding:40px; text-align:center; color:var(--muted); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>SE Remittance Agent</h1>
+    <span class="who" id="who"></span>
+  </header>
+  <nav>
+    <button class="active" data-page="qa" onclick="showPage('qa')">QA Cleanup</button>
+    <button data-page="review" onclick="showPage('review')" title="Coming next">Review</button>
+    <button data-page="log" onclick="showPage('log')" title="Coming next">Run Log</button>
+    <button data-page="settings" onclick="showPage('settings')" title="Coming next">Settings</button>
+  </nav>
+  <main>
+    <!-- QA CLEANUP PAGE -->
+    <div id="page-qa">
+      <div class="note">
+        This scans your <b>staging</b> and <b>live</b> folders and flags files that look wrong.
+        Nothing changes until you tick rows and click an action. Trash goes to Drive Trash
+        (recoverable 30 days). Rename fixes the filename only &mdash; it never edits invoices inside a file.
+      </div>
+      <div class="toolbar">
+        <button class="btn primary" id="scanBtn" onclick="runScan()">Scan folders</button>
+        <button class="btn" id="selAll" onclick="toggleAll(true)" disabled>Select all</button>
+        <button class="btn" id="selNone" onclick="toggleAll(false)" disabled>Clear</button>
+        <span style="flex:1"></span>
+        <button class="btn" id="renameBtn" onclick="doRename()" disabled>Rename selected (fixable)</button>
+        <button class="btn danger" id="trashBtn" onclick="doTrash()" disabled>Trash selected</button>
+      </div>
+      <div class="summary" id="summary" style="display:none">
+        <div class="stat"><div class="n" id="s-total">0</div><div class="l">Flagged</div></div>
+        <div class="stat"><div class="n" id="s-high">0</div><div class="l">High</div></div>
+        <div class="stat"><div class="n" id="s-live">0</div><div class="l">In live folder</div></div>
+        <div class="stat"><div class="n" id="s-fix">0</div><div class="l">Auto-fixable</div></div>
+      </div>
+      <div id="qa-body">
+        <div class="placeholder">Click <b>Scan folders</b> to check staging and live for issues.</div>
+      </div>
+    </div>
+
+    <!-- PLACEHOLDER PAGES (built next) -->
+    <div id="page-review" style="display:none">
+      <div class="placeholder">The Review page (To&nbsp;Process / Skipped, per-row overrides, Confirm) is the next build.</div>
+    </div>
+    <div id="page-log" style="display:none">
+      <div class="placeholder">The Run Log page is coming next.</div>
+    </div>
+    <div id="page-settings" style="display:none">
+      <div class="placeholder">Settings (mode, lookback window, rules refresh) is coming next.</div>
+    </div>
+  </main>
+
+  <div class="flash" id="flash"></div>
+
+<script>
+  var SCAN = null; // last scan result
+
+  function showPage(p) {
+    ['qa','review','log','settings'].forEach(function(x){
+      document.getElementById('page-'+x).style.display = (x===p)?'block':'none';
+    });
+    document.querySelectorAll('nav button').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-page')===p);
+    });
+  }
+
+  function flash(msg) {
+    var f = document.getElementById('flash');
+    f.textContent = msg; f.classList.add('show');
+    setTimeout(function(){ f.classList.remove('show'); }, 3200);
+  }
+
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  function runScan() {
+    var btn = document.getElementById('scanBtn');
+    btn.disabled = true; btn.textContent = 'Scanning…';
+    document.getElementById('qa-body').innerHTML =
+      '<div class="loading"><div class="spinner"></div><div style="margin-top:10px">Scanning staging and live folders…</div></div>';
+    google.script.run
+      .withSuccessHandler(function(res){ SCAN = res; renderScan(res); btn.disabled=false; btn.textContent='Rescan'; })
+      .withFailureHandler(function(err){
+        document.getElementById('qa-body').innerHTML = '<div class="empty">Scan failed: '+esc(err.message||err)+'</div>';
+        btn.disabled=false; btn.textContent='Scan folders';
+      })
+      .qaScan();
+  }
+
+  function renderScan(res) {
+    document.getElementById('who').textContent = res.user ? ('Signed in as '+res.user) : '';
+    var rows = res.rows || [];
+    var high = rows.filter(function(r){return r.severity==='high';}).length;
+    var live = rows.filter(function(r){return r.live;}).length;
+    var fix  = rows.filter(function(r){return r.proposedName;}).length;
+    document.getElementById('s-total').textContent = rows.length;
+    document.getElementById('s-high').textContent = high;
+    document.getElementById('s-live').textContent = live;
+    document.getElementById('s-fix').textContent = fix;
+    document.getElementById('summary').style.display = 'flex';
+
+    var enable = rows.length>0;
+    ['selAll','selNone'].forEach(function(id){ document.getElementById(id).disabled=!enable; });
+
+    if (!rows.length) {
+      document.getElementById('qa-body').innerHTML =
+        '<div class="empty"><div class="big">&#10003;</div>No issues found. Staging and live look clean as of '+esc(res.generatedAt)+'.</div>';
+      updateActionButtons();
+      return;
+    }
+
+    var html = '<table><thead><tr>'
+      + '<th class="row-check"><input type="checkbox" id="hdrCheck" onclick="toggleAll(this.checked)"></th>'
+      + '<th>Severity</th><th>File</th><th>Proposed fix</th><th>Folder</th></tr></thead><tbody>';
+    rows.forEach(function(r, i){
+      var issueTags = r.issues.map(function(x){ return '<span class="tag">'+esc(x)+'</span>'; }).join('');
+      if (r.reextractNeeded) issueTags += '<span class="tag reextract">re-extraction needed (source email)</span>';
+      var proposed = r.proposedName
+        ? '<span class="newname">'+esc(r.proposedName)+'</span>'
+        : '<span class="muted">'+(r.reextractNeeded?'can\u2019t auto-fix name':'\u2014')+'</span>';
+      html += '<tr>'
+        + '<td class="row-check"><input type="checkbox" class="rowchk" data-i="'+i+'" onclick="updateActionButtons()"></td>'
+        + '<td><span class="badge '+r.severity+'">'+r.severity+'</span>'
+          + (r.live?'<span class="badge live">LIVE</span>':'')+'</td>'
+        + '<td><a href="'+esc(r.url)+'" target="_blank" class="fname">'+esc(r.name)+'</a>'
+          + '<div class="issues">'+issueTags+'</div></td>'
+        + '<td>'+proposed+'</td>'
+        + '<td class="muted">'+esc(r.folderName)+'</td>'
+        + '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('qa-body').innerHTML = html;
+    updateActionButtons();
+  }
+
+  function selectedIndices() {
+    return Array.prototype.slice.call(document.querySelectorAll('.rowchk:checked'))
+      .map(function(c){ return parseInt(c.getAttribute('data-i'),10); });
+  }
+
+  function toggleAll(on) {
+    document.querySelectorAll('.rowchk').forEach(function(c){ c.checked=on; });
+    var hdr = document.getElementById('hdrCheck'); if (hdr) hdr.checked=on;
+    updateActionButtons();
+  }
+
+  function updateActionButtons() {
+    var idx = selectedIndices();
+    document.getElementById('trashBtn').disabled = idx.length===0;
+    var anyFixable = idx.some(function(i){ return SCAN.rows[i] && SCAN.rows[i].proposedName; });
+    document.getElementById('renameBtn').disabled = !anyFixable;
+  }
+
+  function doTrash() {
+    var idx = selectedIndices();
+    if (!idx.length) return;
+    var live = idx.filter(function(i){ return SCAN.rows[i].live; }).length;
+    var msg = 'Move '+idx.length+' file(s) to Drive Trash (recoverable 30 days)?';
+    if (live) msg += '\n\n'+live+' of these are in the LIVE folder.';
+    if (!confirm(msg)) return;
+    var ids = idx.map(function(i){ return SCAN.rows[i].id; });
+    setBusy(true);
+    google.script.run
+      .withSuccessHandler(function(results){
+        var ok = results.filter(function(r){return r.ok;}).length;
+        flash('Trashed '+ok+' of '+results.length+' file(s).');
+        runScan();
+      })
+      .withFailureHandler(function(err){ setBusy(false); flash('Trash failed: '+(err.message||err)); })
+      .qaTrash(ids);
+  }
+
+  function doRename() {
+    var idx = selectedIndices().filter(function(i){ return SCAN.rows[i].proposedName; });
+    if (!idx.length) { flash('None of the selected rows have an auto-fixable name.'); return; }
+    var live = idx.filter(function(i){ return SCAN.rows[i].live; }).length;
+    var msg = 'Rename '+idx.length+' file(s) to their corrected names?';
+    if (live) msg += '\n\n'+live+' of these are in the LIVE folder.';
+    if (!confirm(msg)) return;
+    var items = idx.map(function(i){ return { id:SCAN.rows[i].id, newName:SCAN.rows[i].proposedName }; });
+    setBusy(true);
+    google.script.run
+      .withSuccessHandler(function(results){
+        var ok = results.filter(function(r){return r.ok;}).length;
+        flash('Renamed '+ok+' of '+results.length+' file(s).');
+        runScan();
+      })
+      .withFailureHandler(function(err){ setBusy(false); flash('Rename failed: '+(err.message||err)); })
+      .qaRename(items);
+  }
+
+  function setBusy(b) {
+    ['scanBtn','trashBtn','renameBtn','selAll','selNone'].forEach(function(id){
+      document.getElementById(id).disabled = b;
+    });
+  }
+
+  // Auto-run a scan on load so the page opens with live data.
+  window.addEventListener('load', runScan);
+</script>
+</body>
+</html>
