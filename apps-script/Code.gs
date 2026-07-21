@@ -1,0 +1,911 @@
+/**
+ * ================================================================
+ *  SE REMITTANCE AGENT — PHASE 2: EXTRACTION + STAGING
+ * ================================================================
+ *
+ *  What's new vs phase 1
+ *  ---------------------
+ *  The scanner now PROCESSES what it classifies:
+ *    • extract_body emails  → payment data pulled from the body,
+ *      a clean PDF generated, saved to staging  ("Track A")
+ *    • save_attachment emails → the PDF/HTML attachment saved to
+ *      staging, amount read out of the file itself ("Track B")
+ *    • Naming convention applied: $63,256.97 GSK.pdf,
+ *      " GBP" suffix for non-USD, _2/_3 for same-name-different-invoices,
+ *      true duplicates (same name + same invoices) skipped
+ *
+ *  SHADOW MODE (current setting)
+ *  -----------------------------
+ *  Files are written to the staging folder, but NOTHING in Gmail is
+ *  touched — no labels, no read/unread. Your desktop app is entirely
+ *  unaffected; run both and compare. When the desktop app retires,
+ *  change MODE to 'live' below and the marker label switches on.
+ *
+ *  Setup (after pasting)
+ *  ---------------------
+ *  1. Left sidebar → Services → + → choose "Drive API"
+ *     (version v3, identifier "Drive") → Add.
+ *     This is what lets the script read amounts out of PDF attachments.
+ *     Without it, PDF emails are flagged for review instead — never lost.
+ *  2. Run  runRemittanceScan  once → Google will re-ask permissions
+ *     (the script gained Drive/Docs powers) → approve.
+ *  3. Clock icon (Triggers) in the left rail: if your every-10-minutes
+ *     trigger is listed, you're done — it uses the new code automatically.
+ *     If the list is empty, run  installTrigger  once.
+ *
+ *  Outputs
+ *  -------
+ *  • Files:  My Drive → "Remittance Agent — Staging"
+ *  • Log:    same spreadsheet as before, with new columns
+ *            (Amount, Currency, Invoices, Filename, File link)
+ *            plus a "Saved" tab acting as the staging index
+ *  • Quick test without waiting for new mail:  run  testNewestExtraction
+ *    — extracts from the most recent group message and prints what it
+ *    found, without writing anything.
+ */
+
+// ============================ CONFIG ============================
+
+const CONFIG = {
+  GROUP_ADDRESS: 'remittances@scienceexchange.com',
+  LOOKBACK_DAYS: 7,
+  TRIGGER_MINUTES: 10,
+  RULES_URL: 'https://raw.githubusercontent.com/aronhasofer-apps/se-remittance-agent/main/rules.json',
+  MARKER_LABEL: 'Remittance Agent',
+  LOG_FILE_NAME: 'SE Remittance Agent — Log',
+  STAGING_FOLDER_NAME: 'Remittance Agent — Staging',
+
+  // 'shadow' = write files, touch nothing in Gmail (desktop app unaffected)
+  // 'live'   = also apply the marker label after processing
+  MODE: 'shadow',
+
+  // Sanity bounds — outside this range the item is flagged, never lost.
+  AMOUNT_MIN: 1,
+  AMOUNT_MAX: 1000000,
+
+  MAX_PROCESS_PER_RUN: 25, // anything beyond rolls to the next 10-min cycle
+};
+
+// ========================= ENTRY POINTS =========================
+
+function runRemittanceScan() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) return; // previous run still finishing
+  try {
+    const log = getLog_();
+    const seen = getLoggedIds_(log.messages);
+    const rules = loadRules_();
+    const staging = getStagingFolder_();
+
+    const found = findMessages_().filter(function (it) {
+      return !seen.has(it.message.getId());
+    });
+    // oldest first, so _2/_3 suffixes follow arrival order
+    found.sort(function (a, b) { return a.message.getDate() - b.message.getDate(); });
+
+    const rows = [];
+    const counts = { saved: 0, generated: 0, skipped: 0, flagged: 0, duplicate: 0, already: 0 };
+    let processedThisRun = 0;
+    let deferred = 0;
+
+    for (let i = 0; i < found.length; i++) {
+      const msg = found[i].message;
+      const v = classify_(msg, rules);
+      let outcome;
+
+      if (v.alreadyDone) {
+        outcome = { status: 'ALREADY PROCESSED', note: 'Marker label already on this thread' };
+        counts.already++;
+      } else if (v.action === 'skip') {
+        outcome = { status: 'SKIPPED', note: v.note || rulesLabel_(v) };
+        counts.skipped++;
+      } else if (v.action === 'flag') {
+        outcome = { status: 'FLAGGED', note: v.note || 'Needs human review' };
+        counts.flagged++;
+      } else if (processedThisRun >= CONFIG.MAX_PROCESS_PER_RUN) {
+        deferred++;
+        continue; // not logged → picked up next cycle
+      } else {
+        outcome = processMessage_(msg, v, staging, log);
+        processedThisRun++;
+        if (outcome.status === 'SAVED') counts.saved++;
+        else if (outcome.status === 'GENERATED') counts.generated++;
+        else if (outcome.status === 'DUPLICATE') counts.duplicate++;
+        else counts.flagged++;
+        if (CONFIG.MODE === 'live') applyMarker_(msg);
+      }
+
+      rows.push([
+        fmtDate_(new Date()),
+        fmtDate_(msg.getDate()),
+        found[i].location,
+        msg.getFrom(),
+        msg.getSubject(),
+        hasPdf_(msg) ? 'yes' : 'no',
+        v.verdict,
+        v.ruleName,
+        outcome.shortName || v.shortName || '',
+        outcome.status,
+        outcome.note || '',
+        msg.getId(),
+        'https://mail.google.com/mail/u/0/#all/' + msg.getId(),
+        outcome.amountText || '',
+        outcome.currency || '',
+        (outcome.invoices || []).join(', '),
+        outcome.filename || '',
+        outcome.fileUrl || '',
+      ]);
+    }
+
+    if (rows.length) {
+      log.messages
+        .getRange(log.messages.getLastRow() + 1, 1, rows.length, rows[0].length)
+        .setValues(rows);
+    }
+    const summary = counts.saved + ' saved, ' + counts.generated + ' generated, ' +
+      counts.skipped + ' skipped, ' + counts.flagged + ' flagged, ' +
+      counts.duplicate + ' duplicates, ' + counts.already + ' already processed' +
+      (deferred ? ', ' + deferred + ' deferred to next run' : '');
+    log.runs.appendRow([
+      fmtDate_(new Date()), found.length, rows.length,
+      rules.list.length, rules.version, rules.source, '', summary,
+    ]);
+    Logger.log('Scan done. ' + rows.length + ' new message(s). ' + summary +
+      '. Log: ' + log.url);
+  } catch (err) {
+    try {
+      getLog_().runs.appendRow([fmtDate_(new Date()), '', '', '', '', '', 'ERROR: ' + err, '']);
+    } catch (ignore) {}
+    throw err;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function installTrigger() {
+  removeTrigger();
+  ScriptApp.newTrigger('runRemittanceScan')
+    .timeBased().everyMinutes(CONFIG.TRIGGER_MINUTES).create();
+  Logger.log('Trigger installed — runRemittanceScan will run every ' + CONFIG.TRIGGER_MINUTES + ' minutes.');
+}
+
+function removeTrigger() {
+  let n = 0;
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'runRemittanceScan') { ScriptApp.deleteTrigger(t); n++; }
+  });
+  Logger.log('Removed ' + n + ' trigger(s).');
+}
+
+function testRulesFetch() {
+  const r = loadRules_();
+  Logger.log('rules.json v' + r.version + ' loaded from ' + r.source + ' — ' + r.list.length + ' rules.');
+}
+
+/**
+ * Extraction dry-run on the newest group message that isn't already
+ * processed. Prints what it found and the filename it WOULD use.
+ * Writes nothing anywhere.
+ */
+function testNewestExtraction() {
+  const rules = loadRules_();
+  const found = findMessages_();
+  found.sort(function (a, b) { return b.message.getDate() - a.message.getDate(); });
+  for (let i = 0; i < found.length; i++) {
+    const msg = found[i].message;
+    const v = classify_(msg, rules);
+    if (v.alreadyDone || (v.action !== 'save_attachment' && v.action !== 'extract_body')) continue;
+    Logger.log('Testing on: "' + msg.getSubject() + '" (' + fmtDate_(msg.getDate()) + ')');
+    const ext = runExtraction_(msg, v);
+    if (!ext.ok) {
+      Logger.log('Would FLAG — ' + ext.reason);
+    } else {
+      Logger.log('Payor: ' + ext.payor + '  |  Short: ' + ext.shortName +
+        '  |  Amount: ' + money_(ext.amount) + ' ' + ext.currency +
+        '  |  Invoices: ' + (ext.invoices.join(', ') || '(none)'));
+      Logger.log('Filename would be: ' + buildFilename_(ext, ext.fileExt || 'pdf'));
+    }
+    return;
+  }
+  Logger.log('No processable message found in the window.');
+}
+
+// ============================ GMAIL =============================
+
+function findMessages_() {
+  // list: matches the mailing-list stamp Google Groups presses onto every
+  // relayed message — survives From-rewrites and the remittance@ alias.
+  // to:/deliveredto: kept as harmless belt-and-braces.
+  const base = '{list:' + CONFIG.GROUP_ADDRESS +
+               ' to:' + CONFIG.GROUP_ADDRESS +
+               ' deliveredto:' + CONFIG.GROUP_ADDRESS + '}' +
+               ' newer_than:' + CONFIG.LOOKBACK_DAYS + 'd';
+  const buckets = [
+    { q: base,               location: 'Mail'  },
+    { q: base + ' in:spam',  location: 'SPAM'  },
+    { q: base + ' in:trash', location: 'TRASH' },
+  ];
+  const cutoff = Date.now() - CONFIG.LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+  const out = new Map();
+
+  buckets.forEach(function (b) {
+    GmailApp.search(b.q, 0, 200).forEach(function (thread) {
+      thread.getMessages().forEach(function (msg) {
+        if (msg.getDate().getTime() < cutoff) return;
+        const id = msg.getId();
+        if (!out.has(id) || b.location !== 'Mail') {
+          out.set(id, { message: msg, location: b.location });
+        }
+      });
+    });
+  });
+  return Array.from(out.values());
+}
+
+function applyMarker_(msg) {
+  try {
+    const label = GmailApp.getUserLabelByName(CONFIG.MARKER_LABEL) ||
+                  GmailApp.createLabel(CONFIG.MARKER_LABEL);
+    label.addToThread(msg.getThread()); // message stays UNREAD by design
+  } catch (e) { /* labeling must never break processing */ }
+}
+
+// ======================== CLASSIFICATION ========================
+
+function classify_(msg, rules) {
+  const subject = msg.getSubject() || '';
+  const s = subject.toLowerCase();
+  const f = (msg.getFrom() || '').toLowerCase();
+
+  let bodyStart = null;
+  const snippet = function () {
+    if (bodyStart === null) {
+      try { bodyStart = (msg.getPlainBody() || '').slice(0, 1500).toLowerCase(); }
+      catch (e) { bodyStart = ''; }
+    }
+    return bodyStart;
+  };
+
+  let hit = null;
+  for (let i = 0; i < rules.list.length; i++) {
+    if (ruleMatches_(rules.list[i], s, snippet)) { hit = rules.list[i]; break; }
+  }
+
+  let action = hit ? String(hit.action || 'flag').toLowerCase() : 'flag';
+  let note = hit ? '' : 'Unknown payor or in-thread reply';
+
+  // Engine refinement: BILL partial batches "X of Y invoices" (X < Y) wait.
+  const partial = subject.match(/(\d+)\s+of\s+(\d+)\s+invoices?/i);
+  if (partial && (f.indexOf('bill') !== -1 || s.indexOf('bill') !== -1)) {
+    const x = parseInt(partial[1], 10), y = parseInt(partial[2], 10);
+    if (x < y) {
+      action = 'skip';
+      note = 'BILL partial batch (' + x + ' of ' + y + ') — wait for full batch';
+    }
+  }
+
+  return {
+    action: action,
+    verdict: action.replace('_', ' ').toUpperCase(),
+    ruleName: hit ? (hit.id || '(unnamed rule)') : '(no rule matched)',
+    ruleObj: hit,
+    shortName: hit ? (hit.short_name || '') : '',
+    noLabel: hit ? hit.no_label === true : false,
+    note: note,
+    alreadyDone: threadHasMarker_(msg),
+  };
+}
+
+function ruleMatches_(rule, subjectLower, snippetFn) {
+  const m = rule.match || {};
+  const subj = m.subject_contains || [];
+  for (let i = 0; i < subj.length; i++) {
+    if (subjectLower.indexOf(String(subj[i]).toLowerCase()) !== -1) return true;
+  }
+  const snip = m.snippet_contains || [];
+  if (snip.length) {
+    const body = snippetFn();
+    for (let j = 0; j < snip.length; j++) {
+      if (body.indexOf(String(snip[j]).toLowerCase()) !== -1) return true;
+    }
+  }
+  return false;
+}
+
+function rulesLabel_(v) {
+  return v.ruleName ? 'Rule: ' + v.ruleName : '';
+}
+
+function hasPdf_(msg) {
+  return !!pickAttachment_(msg, true);
+}
+
+/** Prefer a PDF; fall back to an HTML attachment (Vertex). */
+function pickAttachment_(msg, pdfOnly) {
+  try {
+    const atts = msg.getAttachments({ includeInlineImages: false, includeAttachments: true });
+    for (let i = 0; i < atts.length; i++) {
+      const a = atts[i];
+      if (/pdf/i.test(a.getContentType() || '') || /\.pdf$/i.test(a.getName() || '')) return a;
+    }
+    if (pdfOnly) return null;
+    for (let j = 0; j < atts.length; j++) {
+      const a = atts[j];
+      if (/html/i.test(a.getContentType() || '') || /\.html?$/i.test(a.getName() || '')) return a;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function threadHasMarker_(msg) {
+  try {
+    return msg.getThread().getLabels().some(function (l) {
+      return l.getName() === CONFIG.MARKER_LABEL;
+    });
+  } catch (e) { return false; }
+}
+
+// ========================== PROCESSING ==========================
+
+/**
+ * Runs extraction, resolves the filename against the staging index,
+ * and writes the file (attachment copy or generated PDF).
+ */
+function processMessage_(msg, v, staging, log) {
+  const ext = runExtraction_(msg, v);
+  if (!ext.ok) {
+    return { status: 'FLAGGED', note: ext.reason, shortName: v.shortName };
+  }
+
+  if (ext.amount < CONFIG.AMOUNT_MIN || ext.amount > CONFIG.AMOUNT_MAX) {
+    return {
+      status: 'FLAGGED',
+      note: 'Amount ' + money_(ext.amount) + ' outside sanity bounds — review',
+      shortName: ext.shortName,
+      amountText: money_(ext.amount), currency: ext.currency, invoices: ext.invoices,
+    };
+  }
+
+  const base = buildFilename_(ext, ext.fileExt || 'pdf');
+  const resolved = resolveFilename_(log.saved, base, ext.invoices);
+  if (resolved.duplicate) {
+    return {
+      status: 'DUPLICATE',
+      note: 'Same filename + same invoices already staged (' + resolved.filename + ')',
+      shortName: ext.shortName,
+      amountText: money_(ext.amount), currency: ext.currency, invoices: ext.invoices,
+      filename: resolved.filename,
+    };
+  }
+
+  let file;
+  try {
+    if (ext.sourceBlob) {
+      file = staging.createFile(ext.sourceBlob.copyBlob()).setName(resolved.filename);
+    } else {
+      file = generateBodyPdf_(msg, ext, resolved.filename, staging);
+    }
+  } catch (e) {
+    return { status: 'FLAGGED', note: 'File write failed: ' + e, shortName: ext.shortName };
+  }
+
+  log.saved.appendRow([
+    fmtDate_(new Date()), resolved.filename, money_(ext.amount), ext.currency,
+    ext.invoices.join(', '), ext.payor, msg.getSubject(), msg.getId(), file.getUrl(),
+  ]);
+
+  return {
+    status: ext.sourceBlob ? 'SAVED' : 'GENERATED',
+    note: ext.note || '',
+    shortName: ext.shortName,
+    amountText: money_(ext.amount),
+    currency: ext.currency,
+    invoices: ext.invoices,
+    filename: resolved.filename,
+    fileUrl: file.getUrl(),
+  };
+}
+
+/**
+ * Decides the extraction path and returns
+ * { ok, payor, shortName, amount, currency, invoices[], sourceBlob?, fileExt?, note?, reason? }
+ */
+function runExtraction_(msg, v) {
+  const att = pickAttachment_(msg, false);
+
+  if (v.action === 'save_attachment' && att) {
+    return extractFromAttachment_(msg, v, att);
+  }
+  // extract_body — or an attachment rule whose attachment never arrived
+  // (e.g. Regeneron sends the advice in the body): fall back to body.
+  const ext = extractFromBody_(msg, v);
+  if (ext.ok && v.action === 'save_attachment') {
+    ext.note = ((ext.note || '') + ' No attachment found — extracted from body instead').trim();
+  }
+  return ext;
+}
+
+// ------------------------- Track A: body -------------------------
+
+function extractFromBody_(msg, v) {
+  const subject = msg.getSubject() || '';
+  let body = '';
+  try { body = msg.getPlainBody() || ''; } catch (e) {}
+  if (!body || body.length < 40) {
+    try { body = stripHtml_(msg.getBody() || ''); } catch (e) {}
+  }
+  const text = subject + '\n' + body;
+  const ruleId = v.ruleObj ? v.ruleObj.id : '';
+
+  let r = null;
+  if (/^bill/.test(ruleId))                          r = extractBill_(subject, body);
+  else if (/^ramp/.test(ruleId))                     r = extractRamp_(subject, body);
+  else if (ruleId === 'merck-body')                  r = extractMerck_(text);
+  else if (ruleId === 'coupa-body' || ruleId === 'neurocrine-body') r = extractCoupa_(subject, body, ruleId);
+  else                                               r = extractGenericBody_(text);
+  if (!r) r = extractGenericBody_(text);
+
+  if (!r || !r.amount) {
+    return { ok: false, reason: 'Amount not found in body — needs human review' };
+  }
+  const invoices = r.invoices && r.invoices.length ? r.invoices : findInvoices_(text);
+  if (!invoices.length) {
+    return { ok: false, reason: 'No invoice numbers found in body — needs human review' };
+  }
+
+  const payor = (r.payor || v.shortName || '').trim();
+  if (!payor) return { ok: false, reason: 'Payor not identified — needs human review' };
+
+  return {
+    ok: true,
+    payor: payor,
+    shortName: shortName_(payor, v.shortName),
+    amount: r.amount,
+    currency: r.currency || detectCurrency_(text),
+    invoices: invoices,
+    note: r.note || '',
+  };
+}
+
+/** BILL.com — the four body formats. */
+function extractBill_(subject, body) {
+  const text = subject + '\n' + body;
+  // "Ansa Biotechnologies, Inc. Sent a payment of 1772.25" (no $)
+  let m = body.match(/([^\r\n]{2,90}?)\s+Sent a payment of\s+\$?([\d,]+\.\d{2})/i);
+  if (m) return { payor: m[1], amount: toNum_(m[2]), invoices: findInvoices_(text) };
+  // "Vedana Therapeutics, Inc. initiated a payment of $584977.80"
+  m = body.match(/([^\r\n]{2,90}?)\s+initiated a payment of\s+\$([\d,]+\.\d{2})/i);
+  if (m) return { payor: m[1], amount: toNum_(m[2]), invoices: findInvoices_(text) };
+  // "Your payment from X will be deposited today" + amount in body
+  m = subject.match(/payment from\s+(.+?)\s+(?:will be deposited|is on the way|is delayed)/i);
+  if (m) {
+    const amt = firstAmount_(body);
+    if (amt) return { payor: m[1], amount: amt, invoices: findInvoices_(text) };
+  }
+  // "X sent you a payment arriving Jul 22"
+  m = subject.match(/^(.+?)\s+sent you a payment arriving/i);
+  if (m) {
+    const amt = firstAmount_(body);
+    if (amt) return { payor: m[1], amount: amt, invoices: findInvoices_(text) };
+  }
+  return null;
+}
+
+/** Ramp — "Payment received: RI-x from Y" and "Payment from Y is on the way". */
+function extractRamp_(subject, body) {
+  const text = subject + '\n' + body;
+  let payor = null, invoices = [];
+  let m = subject.match(/Payment received:\s*((?:RI|CN)-\d+)\s+from\s+(.+)$/i);
+  if (m) { invoices = [m[1]]; payor = m[2]; }
+  if (!payor) {
+    m = subject.match(/Payment from\s+(.+?)\s+is on the way/i);
+    if (m) payor = m[1];
+  }
+  if (!payor) {
+    m = body.match(/([^\r\n]{2,90}?)\s+sent payment for\s+((?:RI|CN)-\d+)/i);
+    if (m) { payor = m[1]; invoices = [m[2]]; }
+  }
+  const amt = firstAmount_(body) || firstAmount_(subject);
+  if (!payor || !amt) return null;
+  if (!invoices.length) invoices = findInvoices_(text);
+  return { payor: payor, amount: amt, invoices: invoices };
+}
+
+/** Merck — Payor Name / Payment Amount fields; three entities → Merck. */
+function extractMerck_(text) {
+  const pm = text.match(/Payor Name:\s*([^\r\n]+)/i);
+  let amount = null;
+  let m = text.match(/Payment Amount[:\s]*\$?\s*([\d,]+\.\d{2})/i);
+  if (m) amount = toNum_(m[1]);
+  if (!amount) {
+    m = text.match(/([\d,]+\.\d{2})\s*USD/);
+    if (m) amount = toNum_(m[1]);
+  }
+  if (!amount) return null;
+  return {
+    payor: pm ? pm[1].trim() : 'Merck',
+    amount: amount,
+    currency: 'USD',
+    invoices: findInvoices_(text),
+  };
+}
+
+/** Coupa portal — "X has sent you a 174,333.91 USD payment" (subject). */
+function extractCoupa_(subject, body, ruleId) {
+  const text = subject + '\n' + body;
+  let m = text.match(/(.+?)\s+has sent you a\s+([\d,]+\.\d{2})\s+(USD|GBP|EUR)\s+payment/i);
+  if (!m) return null;
+  let payor = m[1].replace(/^.*?(?=[A-Z])/, '').trim();
+  if (ruleId === 'neurocrine-body' || /neurocrine/i.test(text)) payor = 'Neurocrine';
+  return { payor: payor, amount: toNum_(m[2]), currency: m[3], invoices: findInvoices_(text) };
+}
+
+/** Generic remittance-advice body (Regeneron, VIR/FISPAN, SVB-style layouts). */
+function extractGenericBody_(text) {
+  let payor = null;
+  let m = text.match(/From Payer\s*[\r\n:]+\s*([^\r\n]+)/i) ||
+          text.match(/Payer Name[:\s]+([^\r\n]+)/i) ||
+          text.match(/Payor Name[:\s]+([^\r\n]+)/i) ||
+          text.match(/([A-Z][^\r\n]{2,80}?)\s+has initiated a payment/i);
+  if (m) payor = m[1].trim();
+
+  let amount = null;
+  m = text.match(/Payment Amount[:\s]*[£$€]?\s*([\d,]+\.\d{2})/i) ||
+      text.match(/(?:^|\n)\s*AMOUNT[:\s]*[£$€]?\s*([\d,]+\.\d{2})/i) ||
+      text.match(/payment (?:via ACH[^$£€\d]*)?(?:for:?|of)\s*[£$€]\s*([\d,]+\.\d{2})/i) ||
+      text.match(/Total(?:\s+Amount)?[:\s]*[£$€]?\s*([\d,]+\.\d{2})/i);
+  if (m) amount = toNum_(m[1]);
+
+  if (!amount) return null;
+  return { payor: payor, amount: amount, invoices: findInvoices_(text) };
+}
+
+// ---------------------- Track B: attachment ----------------------
+
+function extractFromAttachment_(msg, v, att) {
+  const name = att.getName() || 'attachment';
+  const isHtml = /html/i.test(att.getContentType() || '') || /\.html?$/i.test(name);
+  const fileExt = isHtml ? 'html' : 'pdf';
+
+  let text = null, serviceMissing = false;
+  if (isHtml) {
+    try { text = stripHtml_(att.getDataAsString()); } catch (e) { text = null; }
+  } else {
+    const res = pdfText_(att);
+    text = res.text;
+    serviceMissing = res.serviceMissing;
+  }
+
+  if (!text) {
+    return {
+      ok: false,
+      reason: serviceMissing
+        ? 'PDF could not be read — enable the Drive API service (see setup notes at top of script)'
+        : 'Could not read text out of the attachment — needs human review',
+    };
+  }
+
+  const subjBody = (msg.getSubject() || '') + '\n' + safePlainBody_(msg);
+  const full = text + '\n' + subjBody;
+
+  // Amount: prefer labeled totals; fall back to the largest currency figure.
+  let amount = null, note = '';
+  let m = text.match(/(?:Payment|Net|Total)\s*(?:amount|total|value|paid)?\s*[:\s]\s*[£$€]?\s*([\d,]+\.\d{2})/i);
+  if (m) amount = toNum_(m[1]);
+  if (!amount) {
+    const all = (text.match(/[£$€]\s*([\d,]+\.\d{2})/g) || [])
+      .map(function (x) { return toNum_(x.replace(/[£$€\s]/g, '')); });
+    if (all.length) {
+      amount = Math.max.apply(null, all);
+      note = 'Amount taken as largest figure in document — verify';
+    }
+  }
+  if (!amount) return { ok: false, reason: 'Amount not found in attachment — needs human review' };
+
+  // Payor: the rule's short_name is the primary hint; document fields refine it.
+  let payor = v.shortName || '';
+  m = text.match(/(?:Payer|Payor)\s*Name[:\s]+([^\r\n]+)/i) || text.match(/From Payer\s*[\r\n:]+\s*([^\r\n]+)/i);
+  if (m && m[1].trim()) payor = m[1].trim();
+  if (!payor) return { ok: false, reason: 'Payor not identified — needs human review' };
+
+  return {
+    ok: true,
+    payor: payor,
+    shortName: shortName_(payor, v.shortName),
+    amount: amount,
+    currency: detectCurrency_(text) || detectCurrency_(subjBody) || 'USD',
+    invoices: findInvoices_(full), // invoices optional for attachments — file itself is the record
+    sourceBlob: att,
+    fileExt: fileExt,
+    note: note,
+  };
+}
+
+/** PDF → text via a throwaway Google-Doc conversion (Drive advanced service). */
+function pdfText_(blob) {
+  if (typeof Drive === 'undefined') return { text: null, serviceMissing: true };
+  let docId = null;
+  try {
+    const created = Drive.Files.create(
+      { name: 'tmp-remit-extract', mimeType: 'application/vnd.google-apps.document' },
+      blob.copyBlob(),
+      { ocrLanguage: 'en', fields: 'id' }
+    );
+    docId = created.id;
+    const text = DocumentApp.openById(docId).getBody().getText();
+    return { text: text, serviceMissing: false };
+  } catch (e) {
+    return { text: null, serviceMissing: false };
+  } finally {
+    if (docId) { try { DriveApp.getFileById(docId).setTrashed(true); } catch (e2) {} }
+  }
+}
+
+// ------------------------ PDF generation ------------------------
+
+/** Body-only emails become a clean, printable PDF via a throwaway Doc. */
+function generateBodyPdf_(msg, ext, filename, staging) {
+  const doc = DocumentApp.create('tmp — ' + filename);
+  const body = doc.getBody();
+
+  body.appendParagraph('Payment Remittance Advice')
+    .setHeading(DocumentApp.ParagraphHeading.HEADING1);
+  body.appendParagraph('Science Exchange, Inc. — AR Operations')
+    .setFontSize(10).setForegroundColor('#666666');
+  body.appendHorizontalRule();
+
+  body.appendParagraph('Payment Amount').setBold(true).setFontSize(9).setForegroundColor('#444444');
+  const amt = body.appendParagraph(
+    money_(ext.amount) + (ext.currency !== 'USD' ? ' ' + ext.currency : '')
+  );
+  amt.setFontSize(22).setBold(true);
+
+  const fields = [
+    ['Payor', ext.payor],
+    ['Currency', ext.currency],
+    ['Email date', fmtDate_(msg.getDate())],
+    ['Subject', msg.getSubject() || '—'],
+    ['Source', 'remittances@ group — ' + (msg.getFrom() || '')],
+    ['Message ID', msg.getId()],
+    ['Processed', fmtDate_(new Date())],
+  ];
+  fields.forEach(function (f) {
+    body.appendParagraph(f[0]).setBold(true).setFontSize(9).setForegroundColor('#444444');
+    body.appendParagraph(String(f[1])).setBold(false).setFontSize(11);
+  });
+
+  if (ext.invoices.length) {
+    body.appendParagraph('Invoices (' + ext.invoices.length + ')')
+      .setBold(true).setFontSize(9).setForegroundColor('#444444');
+    ext.invoices.forEach(function (inv) {
+      body.appendListItem(inv).setGlyphType(DocumentApp.GlyphType.BULLET).setFontFamily('Courier New');
+    });
+  }
+
+  body.appendHorizontalRule();
+  body.appendParagraph('Generated by SE Remittance Agent · not a substitute for the original remittance document')
+    .setFontSize(8).setForegroundColor('#999999');
+
+  doc.saveAndClose();
+  const pdfBlob = DriveApp.getFileById(doc.getId()).getAs('application/pdf').setName(filename);
+  const file = staging.createFile(pdfBlob);
+  try { DriveApp.getFileById(doc.getId()).setTrashed(true); } catch (e) {}
+  return file;
+}
+
+// ==================== NAMING + DEDUPLICATION ====================
+
+function buildFilename_(ext, fileExt) {
+  const cur = ext.currency && ext.currency !== 'USD' ? ' ' + ext.currency : '';
+  return '$' + money_(ext.amount) + ' ' + sanitize_(ext.shortName) + cur + '.' + (fileExt || 'pdf');
+}
+
+/**
+ * Same filename + same invoices → true duplicate (skip).
+ * Same filename + different invoices → _2, _3 …
+ */
+function resolveFilename_(savedSheet, base, invoices) {
+  const key = invoices.slice().sort().join(',');
+  const index = {}; // lower(filename) -> invoice key
+  const last = savedSheet.getLastRow();
+  if (last >= 2) {
+    savedSheet.getRange(2, 2, last - 1, 4).getValues().forEach(function (r) {
+      const fn = String(r[0] || '').toLowerCase();
+      const inv = String(r[3] || '').split(/\s*,\s*/).filter(String).sort().join(',');
+      if (fn) index[fn] = inv;
+    });
+  }
+  let candidate = base, n = 1;
+  while (index.hasOwnProperty(candidate.toLowerCase())) {
+    if (index[candidate.toLowerCase()] === key && key !== '') {
+      return { filename: candidate, duplicate: true };
+    }
+    n++;
+    candidate = base.replace(/(\.[a-z0-9]+)$/i, '_' + n + '$1');
+  }
+  return { filename: candidate, duplicate: false };
+}
+
+// ====================== EXTRACTION HELPERS ======================
+
+const SHORT_NAMES = [
+  [/glaxosmithkline|(^|\W)gsk(\W|$)/i, 'GSK'],
+  [/bristol[- ]?myers|(^|\W)bms(\W|$)/i, 'BMS'],
+  [/mrl san francisco|merck sharp|merck research|(^|\W)merck(\W|$)/i, 'Merck'],
+  [/gilead/i, 'Gilead Sciences'],
+  [/takeda/i, 'Takeda'],
+  [/abbvie/i, 'AbbVie'],
+  [/neurocrine/i, 'Neurocrine'],
+  [/terray/i, 'Terray Therapeutics'],
+  [/ais operating/i, 'AIS Operating'],
+  [/vertex/i, 'Vertex'],
+  [/weatherwax/i, 'Weatherwax Biotechnologies'],
+  [/vir biotechnology/i, 'VIR Biotechnology'],
+  [/recursion/i, 'Recursion'],
+  [/haleon/i, 'GSK'],
+  [/amgen/i, 'Amgen'],
+  [/incyte/i, 'Incyte'],
+];
+
+function shortName_(payor, ruleHint) {
+  for (let i = 0; i < SHORT_NAMES.length; i++) {
+    if (SHORT_NAMES[i][0].test(payor)) return SHORT_NAMES[i][1];
+  }
+  if (ruleHint) return ruleHint;
+  // Fall back to the company name minus corporate suffixes:
+  // "Ansa Biotechnologies, Inc." → "Ansa Biotechnologies"
+  let s = payor;
+  for (let g = 0; g < 3; g++) {
+    s = s.replace(/[,\s]+(Inc\.?|LLC\.?|Ltd\.?|Limited|Incorporated|Corp\.?|Corporation|Co\.)\s*$/i, '');
+  }
+  return s.trim();
+}
+
+function findInvoices_(text) {
+  const seen = {};
+  const out = [];
+  const re = /\b((?:RI|CN)-\d{5,12})\b/gi;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const inv = m[1].toUpperCase();
+    if (!seen[inv]) { seen[inv] = true; out.push(inv); }
+  }
+  return out;
+}
+
+function detectCurrency_(text) {
+  if (/£|\bGBP\b/.test(text)) return 'GBP';
+  if (/€|\bEUR\b/.test(text)) return 'EUR';
+  if (/\$|\bUSD\b/.test(text)) return 'USD';
+  return null;
+}
+
+function firstAmount_(text) {
+  let m = text.match(/\$\s*([\d,]+\.\d{2})/);
+  if (m) return toNum_(m[1]);
+  m = text.match(/(?:payment of|amount[:\s]+)\s*\$?\s*([\d,]+\.\d{2})/i);
+  return m ? toNum_(m[1]) : null;
+}
+
+function toNum_(s) { return parseFloat(String(s).replace(/,/g, '')); }
+
+function money_(n) {
+  const p = Number(n).toFixed(2).split('.');
+  return p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + p[1];
+}
+
+function sanitize_(s) {
+  return String(s).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function stripHtml_(html) {
+  return String(html)
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|td|th|li|h\d)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&#39;|&rsquo;/gi, "'")
+    .replace(/[ \t]+/g, ' ');
+}
+
+function safePlainBody_(msg) {
+  try { return msg.getPlainBody() || ''; } catch (e) { return ''; }
+}
+
+// ============================ RULES =============================
+
+function loadRules_() {
+  const props = PropertiesService.getScriptProperties();
+  const token = props.getProperty('GITHUB_TOKEN'); // only if the repo goes private
+  const options = { muteHttpExceptions: true, headers: {} };
+  if (token) options.headers.Authorization = 'Bearer ' + token;
+
+  let parsed = null, source = '';
+  try {
+    const resp = UrlFetchApp.fetch(CONFIG.RULES_URL, options);
+    if (resp.getResponseCode() === 200) {
+      const text = resp.getContentText();
+      parsed = JSON.parse(text);
+      source = 'GitHub (live)';
+      if (text.length < 9000) props.setProperty('RULES_CACHE', text);
+    }
+  } catch (e) { /* fall through to cache */ }
+
+  if (!parsed) {
+    const cached = props.getProperty('RULES_CACHE');
+    if (cached) { parsed = JSON.parse(cached); source = 'cached copy (GitHub unreachable)'; }
+  }
+  if (!parsed || !Array.isArray(parsed.rules)) {
+    throw new Error('Could not load rules.json from GitHub and no cached copy exists yet.');
+  }
+  return { list: parsed.rules, version: parsed.version || '?', source: source };
+}
+
+// ==================== LOG SHEET + STAGING =======================
+
+const MESSAGE_HEADERS = [
+  'Logged at', 'Email date', 'Found in', 'From', 'Subject', 'PDF attached',
+  'Verdict', 'Rule matched', 'Payor short name', 'Outcome', 'Note',
+  'Message ID', 'Open in Gmail', 'Amount', 'Currency', 'Invoices', 'Filename', 'File link',
+];
+const RUN_HEADERS = [
+  'Run at', 'In window', 'New logged', 'Rules loaded', 'Rules version', 'Rules source', 'Error', 'Outcomes',
+];
+const SAVED_HEADERS = [
+  'Saved at', 'Filename', 'Amount', 'Currency', 'Invoices', 'Payor', 'Subject', 'Message ID', 'File link',
+];
+
+function getLog_() {
+  const props = PropertiesService.getScriptProperties();
+  let ss = null;
+  const id = props.getProperty('LOG_SPREADSHEET_ID');
+  if (id) { try { ss = SpreadsheetApp.openById(id); } catch (e) { ss = null; } }
+
+  if (!ss) {
+    ss = SpreadsheetApp.create(CONFIG.LOG_FILE_NAME);
+    props.setProperty('LOG_SPREADSHEET_ID', ss.getId());
+    ss.getSheets()[0].setName('Messages');
+  }
+
+  const messages = ensureSheet_(ss, 'Messages', MESSAGE_HEADERS);
+  const runs = ensureSheet_(ss, 'Runs', RUN_HEADERS);
+  const saved = ensureSheet_(ss, 'Saved', SAVED_HEADERS);
+  return { ss: ss, url: ss.getUrl(), messages: messages, runs: runs, saved: saved };
+}
+
+/** Creates the tab if missing; upgrades the header row in place if short. */
+function ensureSheet_(ss, name, headers) {
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
+function getStagingFolder_() {
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('STAGING_FOLDER_ID');
+  if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
+  const folder = DriveApp.createFolder(CONFIG.STAGING_FOLDER_NAME);
+  props.setProperty('STAGING_FOLDER_ID', folder.getId());
+  return folder;
+}
+
+/** Message IDs already logged (column 12) — keeps every run append-only. */
+function getLoggedIds_(sheet) {
+  const seen = new Set();
+  const last = sheet.getLastRow();
+  if (last >= 2) {
+    sheet.getRange(2, 12, last - 1, 1).getValues().forEach(function (r) {
+      if (r[0]) seen.add(String(r[0]));
+    });
+  }
+  return seen;
+}
+
+// ============================ UTILS =============================
+
+function fmtDate_(d) {
+  return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+}
