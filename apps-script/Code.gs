@@ -884,7 +884,16 @@ function loadRules_() {
   if (!parsed || !Array.isArray(parsed.rules)) {
     throw new Error('Could not load rules.json from GitHub and no cached copy exists yet.');
   }
-  return { list: parsed.rules, version: parsed.version || '?', source: source };
+  // Layer UI-created local overrides ON TOP (higher priority) so a rule made in the
+  // Review page classifies the very next run, without needing a GitHub push.
+  let localList = [];
+  try {
+    const localRaw = props.getProperty('LOCAL_RULES');
+    if (localRaw) localList = JSON.parse(localRaw) || [];
+  } catch (e) { localList = []; }
+  const combined = localList.concat(parsed.rules);
+  return { list: combined, version: parsed.version || '?', source: source,
+           localCount: localList.length };
 }
 
 // ==================== LOG SHEET + STAGING =======================
