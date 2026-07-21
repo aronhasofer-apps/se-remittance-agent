@@ -456,10 +456,14 @@ function extractFromBody_(msg, v) {
   const payor = (r.payor || v.shortName || '').trim();
   if (!payor) return { ok: false, reason: 'Payor not identified — needs human review' };
 
+  const sn = shortName_(payor, v.shortName);
+  if (!sn) {
+    return { ok: false, reason: 'Payor short name could not be resolved (avoid bad filename) — needs human review' };
+  }
   return {
     ok: true,
     payor: payor,
-    shortName: shortName_(payor, v.shortName),
+    shortName: sn,
     amount: r.amount,
     currency: r.currency || detectCurrency_(text),
     invoices: invoices,
@@ -491,23 +495,37 @@ function extractBill_(subject, body) {
   return null;
 }
 
-/** Ramp — "Payment received: RI-x from Y" and "Payment from Y is on the way". */
+/** Ramp — payor + invoice from the body line "X sent payment for INV"; amount from the labeled field. */
 function extractRamp_(subject, body) {
   const text = subject + '\n' + body;
   let payor = null, invoices = [];
-  let m = subject.match(/Payment received:\s*((?:RI|CN)-\d+)\s+from\s+(.+)$/i);
-  if (m) { invoices = [m[1]]; payor = m[2]; }
+
+  // Body H1: "Arda Therapeutics, Inc. sent payment for RI-0000154773"
+  let m = body.match(/^(.+?)\s+sent payment for\s+((?:RI|CN)-\d+)/im);
+  if (m) { payor = m[1].trim(); invoices = [m[2].toUpperCase()]; }
+
+  // Fallbacks that still avoid the marketing subject tail:
   if (!payor) {
-    m = subject.match(/Payment from\s+(.+?)\s+is on the way/i);
-    if (m) payor = m[1];
+    m = body.match(/Someone at\s+(.+?)\s+is attempting to complete a payment/i);
+    if (m) payor = m[1].trim();
   }
   if (!payor) {
-    m = body.match(/([^\r\n]{2,90}?)\s+sent payment for\s+((?:RI|CN)-\d+)/i);
-    if (m) { payor = m[1]; invoices = [m[2]]; }
+    // Subject "Payment received: RI-x from Y" — Y is clean here (no marketing tail)
+    m = subject.match(/Payment received:\s*((?:RI|CN)-\d+)\s+from\s+(.+)$/i);
+    if (m) { if (!invoices.length) invoices = [m[1].toUpperCase()]; payor = m[2].trim(); }
   }
-  const amt = firstAmount_(body) || firstAmount_(subject);
+
+  // Amount: prefer the labeled "Payment amount" field; never the marketing "1.0% fee" line.
+  let amt = null;
+  m = body.match(/Payment amount\s*\n?\s*\$([\d,]+\.\d{2})/i);
+  if (m) amt = toNum_(m[1]);
+  if (!amt) { m = body.match(/Invoice total\s*\n?\s*\$([\d,]+\.\d{2})/i); if (m) amt = toNum_(m[1]); }
+  if (!amt) amt = firstAmount_(body);
+
   if (!payor || !amt) return null;
   if (!invoices.length) invoices = findInvoices_(text);
+  // Strip any accidental marketing tail that slipped in via an em dash.
+  payor = payor.replace(/\s+(is on the way|—.*|-\s*get paid.*)$/i, '').trim();
   return { payor: payor, amount: amt, invoices: invoices };
 }
 
@@ -608,10 +626,14 @@ function extractFromAttachment_(msg, v, att) {
   if (m && m[1].trim()) payor = m[1].trim();
   if (!payor) return { ok: false, reason: 'Payor not identified — needs human review' };
 
+  const snA = shortName_(payor, v.shortName);
+  if (!snA) {
+    return { ok: false, reason: 'Payor short name could not be resolved (avoid bad filename) — needs human review' };
+  }
   return {
     ok: true,
     payor: payor,
-    shortName: shortName_(payor, v.shortName),
+    shortName: snA,
     amount: amount,
     currency: detectCurrency_(text) || detectCurrency_(subjBody) || 'USD',
     invoices: findInvoices_(full), // invoices optional for attachments — file itself is the record
@@ -748,27 +770,50 @@ const SHORT_NAMES = [
 ];
 
 function shortName_(payor, ruleHint) {
-  for (let i = 0; i < SHORT_NAMES.length; i++) {
-    if (SHORT_NAMES[i][0].test(payor)) return SHORT_NAMES[i][1];
+  const p = (payor || '').trim();
+  if (p) {
+    for (let i = 0; i < SHORT_NAMES.length; i++) {
+      if (SHORT_NAMES[i][0].test(p)) return SHORT_NAMES[i][1];
+    }
+    // Strip corporate suffixes: "Ansa Biotechnologies, Inc." -> "Ansa Biotechnologies"
+    let s = p;
+    for (let g = 0; g < 3; g++) {
+      s = s.replace(/[,\s]+(Inc\.?|LLC\.?|Ltd\.?|Limited|Incorporated|Corp\.?|Corporation|Co\.)\s*$/i, '');
+    }
+    s = s.trim();
+    if (s) return s;
   }
-  if (ruleHint) return ruleHint;
-  // Fall back to the company name minus corporate suffixes:
-  // "Ansa Biotechnologies, Inc." → "Ansa Biotechnologies"
-  let s = payor;
-  for (let g = 0; g < 3; g++) {
-    s = s.replace(/[,\s]+(Inc\.?|LLC\.?|Ltd\.?|Limited|Incorporated|Corp\.?|Corporation|Co\.)\s*$/i, '');
-  }
-  return s.trim();
+  // Only fall back to the rule hint if it is a REAL short name, never a rule id.
+  // Rule ids look like "bill-arriving", "extract_from_body", "merck-body" (contain - or _
+  // with lowercase-only words). Reject those so we never name a file after a rule.
+  const hint = (ruleHint || '').trim();
+  const looksLikeRuleId = /[_-]/.test(hint) && /^[a-z0-9_-]+$/.test(hint);
+  if (hint && !looksLikeRuleId) return hint;
+  return ''; // caller will flag for review rather than write a bad filename
 }
 
 function findInvoices_(text) {
   const seen = {};
   const out = [];
-  const re = /\b((?:RI|CN)-\d{5,12})\b/gi;
+  // Normalize a space right after the dash (PDF extraction sometimes yields "RI- 0000154139").
+  const norm = String(text).replace(/\b(RI|CN)-\s+(\d)/gi, '$1-$2');
+  // Canonical SE format: RI-/CN- + EXACTLY 10 digits. Taking exactly 10 (with no trailing
+  // boundary requirement) is precisely what lets us stop cleanly at a glued date in Coupa
+  // tables (RI-000015304328/05/2026 -> RI-0000153043) while still matching clean invoices.
+  const re = /(?:RI|CN)-\d{10}/gi;
   let m;
-  while ((m = re.exec(text)) !== null) {
-    const inv = m[1].toUpperCase();
+  while ((m = re.exec(norm)) !== null) {
+    const inv = m[0].toUpperCase();
     if (!seen[inv]) { seen[inv] = true; out.push(inv); }
+  }
+  // Fallback for non-10-digit variants (older/edge formats): require a real boundary after
+  // so we never swallow an adjacent date.
+  if (!out.length) {
+    const re2 = /\b((?:RI|CN)-\d{5,12})\b/gi;
+    while ((m = re2.exec(norm)) !== null) {
+      const inv = m[1].toUpperCase();
+      if (!seen[inv]) { seen[inv] = true; out.push(inv); }
+    }
   }
   return out;
 }
@@ -909,3 +954,4 @@ function getLoggedIds_(sheet) {
 function fmtDate_(d) {
   return Utilities.formatDate(d, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
 }
+
