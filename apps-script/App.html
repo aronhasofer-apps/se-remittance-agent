@@ -36,11 +36,11 @@
   nav button:disabled { opacity:.4; cursor:default; }
   nav button .soon { font-size:9.5px; text-transform:uppercase; letter-spacing:.05em;
     background:var(--line); color:var(--muted); padding:1px 5px; border-radius:8px; margin-left:5px; font-weight:700; }
-  main { max-width:1120px; margin:0 auto; padding:22px 24px 60px; }
+  main { max-width:1120px; margin:0 auto; padding:18px 24px 48px; }
   .note { background:var(--accent-wash); border:1px solid #cfe0f7; color:var(--accent-dark);
-    border-radius:9px; padding:11px 15px; font-size:12.5px; margin-bottom:18px; line-height:1.55; }
+    border-radius:9px; padding:10px 14px; font-size:12.5px; margin-bottom:14px; line-height:1.5; }
   .note b { font-weight:700; }
-  .toolbar { display:flex; align-items:center; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
+  .toolbar { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
   .btn { border:1px solid var(--line); background:var(--card); border-radius:8px; padding:9px 15px; cursor:pointer;
     font-size:13px; font-weight:600; color:var(--ink); letter-spacing:-.01em; transition:border-color .12s, background .12s; }
   .btn:hover:not(:disabled) { border-color:#c3ccd6; background:#fbfcfd; }
@@ -50,15 +50,15 @@
   .btn.danger:hover:not(:disabled) { background:#8f1e17; border-color:#8f1e17; }
   .btn:disabled { opacity:.45; cursor:default; }
   .spacer { flex:1; }
-  .summary { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
-  .stat { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 16px; min-width:104px; flex:1; max-width:180px; }
-  .stat .n { font-size:23px; font-weight:750; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+  .summary { display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:9px; padding:9px 13px; min-width:92px; flex:1; max-width:160px; }
+  .stat .n { font-size:20px; font-weight:750; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
   .stat .l { font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; margin-top:2px; }
   .stat.alert .n { color:var(--high); }
   .stat.live .n { color:var(--live); }
   .panel { background:var(--card); border:1px solid var(--line); border-radius:11px; overflow:hidden; }
   table { width:100%; border-collapse:collapse; }
-  th,td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  th,td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
   th { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); background:#f7f9fb; font-weight:700; }
   tbody tr:last-child td { border-bottom:none; }
   tbody tr:hover { background:#fafcfd; }
@@ -91,6 +91,16 @@
     transition:opacity .2s, transform .2s; z-index:60; max-width:80%; pointer-events:none; }
   .flash.show { opacity:1; transform:translateX(-50%) translateY(0); }
   @media (prefers-reduced-motion: reduce) { .spinner { animation:none; } .flash { transition:none; } }
+
+  /* Review: exception-queue styling + tighter rhythm */
+  .sec-head { font-size:12px; color:var(--muted); margin:16px 0 6px; font-weight:700;
+    text-transform:uppercase; letter-spacing:.05em; }
+  .sec-head.attention { color:var(--high); }
+  .attention-banner { background:var(--high-wash); border:1px solid #f2c9c5; color:var(--high);
+    border-radius:9px; padding:10px 14px; font-size:13px; margin-bottom:6px; }
+  .attention-banner b { font-weight:800; }
+  .allclear { background:var(--ok-wash); border:1px solid #c4e6d1; color:var(--ok);
+    border-radius:9px; padding:12px 15px; font-size:13px; margin-bottom:10px; }
 </style>
 </head>
 <body>
@@ -414,20 +424,35 @@
       return;
     }
 
+    // Reframe as an EXCEPTION QUEUE: surface only what the engine got stuck on at the
+    // top; everything it handled (saved, generated, skipped by rule) sits below as a
+    // confirmation list, not a to-do list.
+    var all = tp.concat(sk);
+    var needs = all.filter(needsIntervention_);
+    var handled = all.filter(function(x){ return !needsIntervention_(x); });
+
     var html = '';
-    html += reviewSection('To process', tp, false);
-    html += reviewSection('\u23ed Skipped', sk, true);
+    if (needs.length) {
+      html += '<div class="attention-banner">'
+        + '<b>' + needs.length + '</b> item' + (needs.length>1?'s':'') + ' need your attention \u2014 the engine couldn\u2019t handle these on its own.'
+        + '</div>';
+    }
+    html += reviewSection('Needs your attention', needs, false, true);
+    html += reviewSection('Handled automatically', handled, true, false);
     document.getElementById('review-body').innerHTML = html;
   }
 
-  function reviewSection(title, items, isSkip) {
+  function reviewSection(title, items, isSkip, isAttention) {
     if (!items.length) {
-      return '<h3 style="font-size:13px;color:var(--muted);margin:22px 0 8px;font-weight:700;'
-        + 'text-transform:uppercase;letter-spacing:.05em">' + esc(title) + ' (0)</h3>'
-        + '<div class="no-fix" style="padding:0 2px 8px">None.</div>';
+      if (isAttention) {
+        // The good case: nothing needs the human.
+        return '<h3 class="sec-head">' + esc(title) + ' (0)</h3>'
+          + '<div class="allclear">&#10003; Nothing needs your attention \u2014 the engine handled everything.</div>';
+      }
+      return '<h3 class="sec-head">' + esc(title) + ' (0)</h3>'
+        + '<div class="no-fix" style="padding:0 2px 10px">None.</div>';
     }
-    var h = '<h3 style="font-size:13px;color:var(--ink-soft);margin:22px 0 8px;font-weight:700;'
-      + 'text-transform:uppercase;letter-spacing:.05em">' + esc(title) + ' (' + items.length + ')</h3>';
+    var h = '<h3 class="sec-head' + (isAttention ? ' attention' : '') + '">' + esc(title) + ' (' + items.length + ')</h3>';
     h += '<div class="panel"><table><thead><tr>'
       + '<th>Payor / amount</th><th>Method</th><th>Subject</th><th>Invoices</th><th>Action</th></tr></thead><tbody>';
     items.forEach(function(it, i){
@@ -458,15 +483,30 @@
     return '<span class="badge ' + cls + '">' + esc(label) + '</span>';
   }
 
+  // A row needs the human only if the engine got stuck: it couldn't classify it
+  // (FLAGGED) or couldn't resolve a payor name. Everything else is already handled.
+  function needsIntervention_(it) {
+    if (it.outcome === 'FLAGGED') return true;
+    if (!it.payor || it.payor === '') return true;
+    return false;
+  }
+
   function actionControl_(idx, it) {
+    // Handled rows: no rule prompt. Show a quiet, optional "change / rule" affordance
+    // only if the user wants to override — but do not present it as a required action.
+    if (!needsIntervention_(it)) {
+      return '<span class="no-fix">\u2014</span>';
+    }
+    // Stuck rows: this is where the human teaches the engine. Offer the action dropdown
+    // and the Create rule button prominently.
     var opts = ['save_attachment','extract_body','skip','flag'];
     var sel = '<select class="btn" style="padding:6px 8px;font-weight:500" onchange="onActionChange(\''+idx+'\', this.value)">';
     opts.forEach(function(o){
       sel += '<option value="'+o+'"'+(o===it.action?' selected':'')+'>'+ACTION_LABELS[o]+'</option>';
     });
     sel += '</select>';
-    var ruleBtn = '<button class="btn" style="padding:6px 10px;margin-left:6px" onclick="openRuleForm(\''+idx+'\')">Create rule</button>';
-    return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">' + sel + ruleBtn + '</div>';
+    var ruleBtn = '<button class="btn primary" style="padding:6px 10px;margin-left:6px" onclick="openRuleForm(\''+idx+'\')">Create rule</button>';
+    return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">' + sel + ruleBtn + '</div>';
   }
 
   function itemByIdx(idx) {
