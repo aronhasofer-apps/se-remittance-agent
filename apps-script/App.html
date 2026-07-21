@@ -3,162 +3,228 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   :root {
-    --bg:#f6f7f9; --card:#fff; --line:#e4e7eb; --ink:#1a1f29; --muted:#6b7280;
-    --brand:#1f5fbf; --brand-dark:#17478f; --high:#c0392b; --high-bg:#fdecea;
-    --med:#b8860b; --med-bg:#fdf6e3; --live:#8e44ad; --live-bg:#f5eefa;
-    --ok:#1e8e4e; --danger:#c0392b;
+    --paper:#f4f6f8; --card:#ffffff; --ink:#12202e; --ink-soft:#3d4d5c;
+    --muted:#6b7a89; --line:#e2e8ee; --line-soft:#eef2f6;
+    --accent:#1763c6; --accent-dark:#0f4a9c; --accent-wash:#eaf1fb;
+    --high:#b3261e; --high-wash:#fdecea; --med:#8a5a00; --med-wash:#fbf3e2;
+    --live:#7b3fb3; --live-wash:#f2ebfa; --ok:#1a7f4b; --ok-wash:#e7f4ec;
+    --mono:"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   }
   * { box-sizing:border-box; }
-  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    background:var(--bg); color:var(--ink); font-size:14px; }
-  header { background:var(--card); border-bottom:1px solid var(--line); padding:14px 22px;
-    display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:10; }
-  header h1 { font-size:16px; margin:0; font-weight:700; }
-  header .who { margin-left:auto; color:var(--muted); font-size:12px; }
-  nav { display:flex; gap:4px; padding:0 18px; background:var(--card); border-bottom:1px solid var(--line); }
-  nav button { background:none; border:none; padding:12px 16px; cursor:pointer; font-size:13px;
-    color:var(--muted); border-bottom:2px solid transparent; }
-  nav button.active { color:var(--brand); border-bottom-color:var(--brand); font-weight:600; }
+  html,body { margin:0; }
+  body {
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--paper); color:var(--ink); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  header { background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:20; }
+  .header-inner { max-width:1120px; margin:0 auto; padding:16px 24px 0; display:flex; align-items:flex-start; gap:14px; }
+  .mark { width:34px; height:34px; border-radius:8px; flex:none;
+    background:linear-gradient(135deg,var(--accent),var(--accent-dark));
+    display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:15px; letter-spacing:-.02em; }
+  .title h1 { font-size:16px; margin:0; font-weight:700; letter-spacing:-.01em; }
+  .title .sub { font-size:12px; color:var(--muted); margin-top:1px; }
+  .who { margin-left:auto; text-align:right; font-size:12px; color:var(--muted); padding-top:3px; }
+  nav { max-width:1120px; margin:0 auto; padding:10px 24px 0; display:flex; gap:2px; }
+  nav button { background:none; border:none; padding:10px 15px 12px; cursor:pointer; font-size:13px;
+    color:var(--muted); border-bottom:2.5px solid transparent; font-weight:600; letter-spacing:-.01em; border-radius:6px 6px 0 0; }
+  nav button:hover:not(:disabled) { color:var(--ink-soft); background:var(--line-soft); }
+  nav button.active { color:var(--accent); border-bottom-color:var(--accent); }
   nav button:disabled { opacity:.4; cursor:default; }
-  main { padding:22px; max-width:1100px; margin:0 auto; }
-  .toolbar { display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
-  .btn { border:1px solid var(--line); background:var(--card); border-radius:7px; padding:8px 14px;
-    cursor:pointer; font-size:13px; font-weight:600; color:var(--ink); }
-  .btn:hover { border-color:#c8ccd2; }
-  .btn.primary { background:var(--brand); color:#fff; border-color:var(--brand); }
-  .btn.primary:hover { background:var(--brand-dark); }
-  .btn.danger { background:var(--danger); color:#fff; border-color:var(--danger); }
+  nav button .soon { font-size:9.5px; text-transform:uppercase; letter-spacing:.05em;
+    background:var(--line); color:var(--muted); padding:1px 5px; border-radius:8px; margin-left:5px; font-weight:700; }
+  main { max-width:1120px; margin:0 auto; padding:22px 24px 60px; }
+  .note { background:var(--accent-wash); border:1px solid #cfe0f7; color:var(--accent-dark);
+    border-radius:9px; padding:11px 15px; font-size:12.5px; margin-bottom:18px; line-height:1.55; }
+  .note b { font-weight:700; }
+  .toolbar { display:flex; align-items:center; gap:10px; margin-bottom:18px; flex-wrap:wrap; }
+  .btn { border:1px solid var(--line); background:var(--card); border-radius:8px; padding:9px 15px; cursor:pointer;
+    font-size:13px; font-weight:600; color:var(--ink); letter-spacing:-.01em; transition:border-color .12s, background .12s; }
+  .btn:hover:not(:disabled) { border-color:#c3ccd6; background:#fbfcfd; }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn.primary:hover:not(:disabled) { background:var(--accent-dark); border-color:var(--accent-dark); }
+  .btn.danger { background:var(--high); color:#fff; border-color:var(--high); }
+  .btn.danger:hover:not(:disabled) { background:#8f1e17; border-color:#8f1e17; }
   .btn:disabled { opacity:.45; cursor:default; }
-  .muted { color:var(--muted); }
-  .summary { display:flex; gap:18px; margin-bottom:14px; flex-wrap:wrap; }
-  .summary .stat { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 14px; min-width:96px; }
-  .summary .stat .n { font-size:20px; font-weight:700; }
-  .summary .stat .l { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.03em; }
-  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line);
-    border-radius:8px; overflow:hidden; }
-  th,td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
-  th { font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); background:#fafbfc; }
-  tr:last-child td { border-bottom:none; }
-  .fname { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:12.5px; word-break:break-all; }
-  .arrow { color:var(--muted); }
-  .newname { font-family:"SF Mono",Menlo,Consolas,monospace; font-size:12.5px; color:var(--ok); word-break:break-all; }
-  .badge { display:inline-block; padding:2px 8px; border-radius:11px; font-size:11px; font-weight:600; white-space:nowrap; }
-  .badge.high { background:var(--high-bg); color:var(--high); }
-  .badge.medium { background:var(--med-bg); color:var(--med); }
-  .badge.low { background:#eef1f4; color:var(--muted); }
-  .badge.live { background:var(--live-bg); color:var(--live); margin-left:6px; }
-  .issues { font-size:12px; color:var(--muted); margin-top:4px; }
-  .issues .tag { display:inline-block; background:#eef1f4; border-radius:4px; padding:1px 6px; margin:2px 4px 0 0; }
-  .issues .tag.reextract { background:var(--high-bg); color:var(--high); }
-  .empty { text-align:center; padding:48px 20px; color:var(--muted); }
-  .empty .big { font-size:40px; margin-bottom:8px; }
-  .row-check { width:34px; text-align:center; }
-  .loading { text-align:center; padding:40px; color:var(--muted); }
-  .spinner { display:inline-block; width:20px; height:20px; border:3px solid var(--line);
-    border-top-color:var(--brand); border-radius:50%; animation:spin .8s linear infinite; }
+  .spacer { flex:1; }
+  .summary { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 16px; min-width:104px; flex:1; max-width:180px; }
+  .stat .n { font-size:23px; font-weight:750; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+  .stat .l { font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:700; margin-top:2px; }
+  .stat.alert .n { color:var(--high); }
+  .stat.live .n { color:var(--live); }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:11px; overflow:hidden; }
+  table { width:100%; border-collapse:collapse; }
+  th,td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--line-soft); vertical-align:top; }
+  th { font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); background:#f7f9fb; font-weight:700; }
+  tbody tr:last-child td { border-bottom:none; }
+  tbody tr:hover { background:#fafcfd; }
+  .fname { font-family:var(--mono); font-size:12.5px; color:var(--ink); word-break:break-all; text-decoration:none; }
+  .fname:hover { color:var(--accent); text-decoration:underline; }
+  .newname { font-family:var(--mono); font-size:12.5px; color:var(--ok); word-break:break-all; }
+  .no-fix { color:var(--muted); font-size:12px; }
+  .badge { display:inline-block; padding:2.5px 9px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap; letter-spacing:.01em; }
+  .badge.high { background:var(--high-wash); color:var(--high); }
+  .badge.medium { background:var(--med-wash); color:var(--med); }
+  .badge.low { background:var(--line-soft); color:var(--muted); }
+  .badge.live { background:var(--live-wash); color:var(--live); margin-left:6px; }
+  .issues { margin-top:5px; }
+  .tag { display:inline-block; background:var(--line-soft); color:var(--ink-soft); border-radius:5px; padding:2px 7px; margin:2px 4px 0 0; font-size:11.5px; }
+  .tag.reextract { background:var(--high-wash); color:var(--high); font-weight:600; }
+  .row-check { width:36px; text-align:center; }
+  input[type=checkbox] { width:15px; height:15px; accent-color:var(--accent); cursor:pointer; }
+  .state { text-align:center; padding:56px 24px; color:var(--muted); }
+  .state .glyph { font-size:34px; margin-bottom:12px; opacity:.85; }
+  .state .headline { font-size:15px; color:var(--ink-soft); font-weight:600; margin-bottom:4px; }
+  .state .detail { font-size:13px; }
+  .state .btn { margin-top:16px; display:inline-block; }
+  .spinner { display:inline-block; width:22px; height:22px; border:3px solid var(--line); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
-  .note { background:#eef4ff; border:1px solid #cfe0fb; color:#1c4a8f; border-radius:8px;
-    padding:10px 14px; font-size:13px; margin-bottom:16px; }
-  .flash { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink);
-    color:#fff; padding:12px 20px; border-radius:8px; font-size:13px; box-shadow:0 6px 24px rgba(0,0,0,.25);
-    opacity:0; transition:opacity .2s; z-index:50; max-width:80%; }
-  .flash.show { opacity:1; }
-  .placeholder { background:var(--card); border:1px dashed var(--line); border-radius:8px;
-    padding:40px; text-align:center; color:var(--muted); }
+  .placeholder { background:var(--card); border:1px dashed var(--line); border-radius:11px; padding:52px 28px; text-align:center; color:var(--muted); }
+  .placeholder .glyph { font-size:30px; opacity:.7; margin-bottom:10px; }
+  .placeholder .headline { font-size:14px; color:var(--ink-soft); font-weight:600; margin-bottom:4px; }
+  .flash { position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(8px); background:var(--ink); color:#fff;
+    padding:12px 20px; border-radius:9px; font-size:13px; box-shadow:0 8px 28px rgba(18,32,46,.28); opacity:0;
+    transition:opacity .2s, transform .2s; z-index:60; max-width:80%; pointer-events:none; }
+  .flash.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation:none; } .flash { transition:none; } }
 </style>
 </head>
 <body>
   <header>
-    <h1>SE Remittance Agent</h1>
-    <span class="who" id="who"></span>
+    <div class="header-inner">
+      <div class="mark">SE</div>
+      <div class="title">
+        <h1>Remittance Agent</h1>
+        <div class="sub">Accounts Receivable &middot; daily cash receipts</div>
+      </div>
+      <div class="who" id="who">&nbsp;</div>
+    </div>
+    <nav>
+      <button class="active" data-page="qa" onclick="showPage('qa')">QA Cleanup</button>
+      <button data-page="review" onclick="showPage('review')">Review <span class="soon">soon</span></button>
+      <button data-page="log" onclick="showPage('log')">Run Log <span class="soon">soon</span></button>
+      <button data-page="settings" onclick="showPage('settings')">Settings <span class="soon">soon</span></button>
+    </nav>
   </header>
-  <nav>
-    <button class="active" data-page="qa" onclick="showPage('qa')">QA Cleanup</button>
-    <button data-page="review" onclick="showPage('review')" title="Coming next">Review</button>
-    <button data-page="log" onclick="showPage('log')" title="Coming next">Run Log</button>
-    <button data-page="settings" onclick="showPage('settings')" title="Coming next">Settings</button>
-  </nav>
+
   <main>
-    <!-- QA CLEANUP PAGE -->
     <div id="page-qa">
       <div class="note">
-        This scans your <b>staging</b> and <b>live</b> folders and flags files that look wrong.
-        Nothing changes until you tick rows and click an action. Trash goes to Drive Trash
-        (recoverable 30 days). Rename fixes the filename only &mdash; it never edits invoices inside a file.
+        Scans your <b>staging</b> and <b>live</b> folders and flags files that look wrong. Nothing changes
+        until you tick rows and choose an action. Trash goes to Drive Trash (recoverable 30 days). Rename
+        fixes the filename only &mdash; it never edits invoices inside a file.
       </div>
       <div class="toolbar">
         <button class="btn primary" id="scanBtn" onclick="runScan()">Scan folders</button>
         <button class="btn" id="selAll" onclick="toggleAll(true)" disabled>Select all</button>
         <button class="btn" id="selNone" onclick="toggleAll(false)" disabled>Clear</button>
-        <span style="flex:1"></span>
-        <button class="btn" id="renameBtn" onclick="doRename()" disabled>Rename selected (fixable)</button>
+        <span class="spacer"></span>
+        <button class="btn" id="renameBtn" onclick="doRename()" disabled>Rename selected</button>
         <button class="btn danger" id="trashBtn" onclick="doTrash()" disabled>Trash selected</button>
       </div>
       <div class="summary" id="summary" style="display:none">
         <div class="stat"><div class="n" id="s-total">0</div><div class="l">Flagged</div></div>
-        <div class="stat"><div class="n" id="s-high">0</div><div class="l">High</div></div>
-        <div class="stat"><div class="n" id="s-live">0</div><div class="l">In live folder</div></div>
+        <div class="stat alert"><div class="n" id="s-high">0</div><div class="l">High severity</div></div>
+        <div class="stat live"><div class="n" id="s-live">0</div><div class="l">In live folder</div></div>
         <div class="stat"><div class="n" id="s-fix">0</div><div class="l">Auto-fixable</div></div>
       </div>
       <div id="qa-body">
-        <div class="placeholder">Click <b>Scan folders</b> to check staging and live for issues.</div>
+        <div class="state">
+          <div class="glyph">&#128269;</div>
+          <div class="headline">Ready to scan</div>
+          <div class="detail">Check the staging and live folders for naming and invoice issues.</div>
+          <button class="btn primary" onclick="runScan()">Scan folders</button>
+        </div>
       </div>
     </div>
 
-    <!-- PLACEHOLDER PAGES (built next) -->
     <div id="page-review" style="display:none">
-      <div class="placeholder">The Review page (To&nbsp;Process / Skipped, per-row overrides, Confirm) is the next build.</div>
+      <div class="placeholder">
+        <div class="glyph">&#128203;</div>
+        <div class="headline">Review is the next build</div>
+        <div>To&nbsp;Process / Skipped lists, per-row action overrides, and Confirm will live here.</div>
+      </div>
     </div>
     <div id="page-log" style="display:none">
-      <div class="placeholder">The Run Log page is coming next.</div>
+      <div class="placeholder">
+        <div class="glyph">&#128220;</div>
+        <div class="headline">Run Log is coming next</div>
+        <div>Every scan and action, with who did what and when.</div>
+      </div>
     </div>
     <div id="page-settings" style="display:none">
-      <div class="placeholder">Settings (mode, lookback window, rules refresh) is coming next.</div>
+      <div class="placeholder">
+        <div class="glyph">&#9881;</div>
+        <div class="headline">Settings is coming next</div>
+        <div>Mode (shadow / live), lookback window, and rules refresh.</div>
+      </div>
     </div>
   </main>
 
   <div class="flash" id="flash"></div>
 
 <script>
-  var SCAN = null; // last scan result
+  var SCAN = null;
 
   function showPage(p) {
     ['qa','review','log','settings'].forEach(function(x){
-      document.getElementById('page-'+x).style.display = (x===p)?'block':'none';
+      var el = document.getElementById('page-'+x);
+      if (el) el.style.display = (x===p) ? 'block' : 'none';
     });
-    document.querySelectorAll('nav button').forEach(function(b){
-      b.classList.toggle('active', b.getAttribute('data-page')===p);
-    });
+    var btns = document.querySelectorAll('nav button');
+    for (var i=0;i<btns.length;i++){ btns[i].classList.toggle('active', btns[i].getAttribute('data-page')===p); }
   }
-
   function flash(msg) {
     var f = document.getElementById('flash');
     f.textContent = msg; f.classList.add('show');
     setTimeout(function(){ f.classList.remove('show'); }, 3200);
   }
-
-  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-
+  function setBusy(b) {
+    ['scanBtn','trashBtn','renameBtn','selAll','selNone'].forEach(function(id){
+      var el = document.getElementById(id); if (el) el.disabled = b;
+    });
+  }
   function runScan() {
     var btn = document.getElementById('scanBtn');
-    btn.disabled = true; btn.textContent = 'Scanning…';
+    if (btn) { btn.disabled = true; btn.textContent = 'Scanning\u2026'; }
     document.getElementById('qa-body').innerHTML =
-      '<div class="loading"><div class="spinner"></div><div style="margin-top:10px">Scanning staging and live folders…</div></div>';
-    google.script.run
-      .withSuccessHandler(function(res){ SCAN = res; renderScan(res); btn.disabled=false; btn.textContent='Rescan'; })
-      .withFailureHandler(function(err){
-        document.getElementById('qa-body').innerHTML = '<div class="empty">Scan failed: '+esc(err.message||err)+'</div>';
-        btn.disabled=false; btn.textContent='Scan folders';
-      })
-      .qaScan();
+      '<div class="state"><div class="spinner"></div>'
+      + '<div class="headline" style="margin-top:14px">Scanning folders</div>'
+      + '<div class="detail">Reading staging and live \u2014 this takes a few seconds.</div></div>';
+    try {
+      google.script.run
+        .withSuccessHandler(function(res){
+          try { SCAN = res; renderScan(res); }
+          catch (e) { showError('Could not render results: ' + (e && e.message ? e.message : e)); }
+          if (btn) { btn.disabled = false; btn.textContent = 'Rescan'; }
+        })
+        .withFailureHandler(function(err){
+          showError(err && err.message ? err.message : String(err));
+          if (btn) { btn.disabled = false; btn.textContent = 'Scan folders'; }
+        })
+        .qaScan();
+    } catch (e) {
+      showError('Could not start the scan: ' + (e && e.message ? e.message : e));
+      if (btn) { btn.disabled = false; btn.textContent = 'Scan folders'; }
+    }
   }
-
+  function showError(msg) {
+    document.getElementById('qa-body').innerHTML =
+      '<div class="state"><div class="glyph">&#9888;</div>'
+      + '<div class="headline">Scan couldn\u2019t finish</div>'
+      + '<div class="detail">' + esc(msg) + '</div>'
+      + '<button class="btn primary" onclick="runScan()">Try again</button></div>';
+  }
   function renderScan(res) {
-    document.getElementById('who').textContent = res.user ? ('Signed in as '+res.user) : '';
-    var rows = res.rows || [];
+    var who = document.getElementById('who');
+    if (who) who.innerHTML = res && res.user ? ('Signed in<br>' + esc(res.user)) : '&nbsp;';
+    var rows = (res && res.rows) ? res.rows : [];
     var high = rows.filter(function(r){return r.severity==='high';}).length;
     var live = rows.filter(function(r){return r.live;}).length;
     var fix  = rows.filter(function(r){return r.proposedName;}).length;
@@ -167,105 +233,99 @@
     document.getElementById('s-live').textContent = live;
     document.getElementById('s-fix').textContent = fix;
     document.getElementById('summary').style.display = 'flex';
-
-    var enable = rows.length>0;
-    ['selAll','selNone'].forEach(function(id){ document.getElementById(id).disabled=!enable; });
-
+    var enable = rows.length > 0;
+    ['selAll','selNone'].forEach(function(id){ document.getElementById(id).disabled = !enable; });
     if (!rows.length) {
       document.getElementById('qa-body').innerHTML =
-        '<div class="empty"><div class="big">&#10003;</div>No issues found. Staging and live look clean as of '+esc(res.generatedAt)+'.</div>';
-      updateActionButtons();
-      return;
+        '<div class="state"><div class="glyph" style="color:var(--ok)">&#10003;</div>'
+        + '<div class="headline">Everything looks clean</div>'
+        + '<div class="detail">No naming or invoice issues in staging or live as of '
+        + esc(res.generatedAt) + '.</div></div>';
+      updateActionButtons(); return;
     }
-
-    var html = '<table><thead><tr>'
+    var html = '<div class="panel"><table><thead><tr>'
       + '<th class="row-check"><input type="checkbox" id="hdrCheck" onclick="toggleAll(this.checked)"></th>'
       + '<th>Severity</th><th>File</th><th>Proposed fix</th><th>Folder</th></tr></thead><tbody>';
     rows.forEach(function(r, i){
-      var issueTags = r.issues.map(function(x){ return '<span class="tag">'+esc(x)+'</span>'; }).join('');
-      if (r.reextractNeeded) issueTags += '<span class="tag reextract">re-extraction needed (source email)</span>';
+      var tags = r.issues.map(function(x){ return '<span class="tag">'+esc(x)+'</span>'; }).join('');
+      if (r.reextractNeeded) tags += '<span class="tag reextract">re-extraction needed</span>';
       var proposed = r.proposedName
         ? '<span class="newname">'+esc(r.proposedName)+'</span>'
-        : '<span class="muted">'+(r.reextractNeeded?'can\u2019t auto-fix name':'\u2014')+'</span>';
+        : '<span class="no-fix">'+(r.reextractNeeded?'can\u2019t auto-fix name':'\u2014')+'</span>';
       html += '<tr>'
         + '<td class="row-check"><input type="checkbox" class="rowchk" data-i="'+i+'" onclick="updateActionButtons()"></td>'
-        + '<td><span class="badge '+r.severity+'">'+r.severity+'</span>'
+        + '<td><span class="badge '+r.severity+'">'+esc(r.severity)+'</span>'
           + (r.live?'<span class="badge live">LIVE</span>':'')+'</td>'
         + '<td><a href="'+esc(r.url)+'" target="_blank" class="fname">'+esc(r.name)+'</a>'
-          + '<div class="issues">'+issueTags+'</div></td>'
+          + '<div class="issues">'+tags+'</div></td>'
         + '<td>'+proposed+'</td>'
-        + '<td class="muted">'+esc(r.folderName)+'</td>'
+        + '<td class="no-fix">'+esc(r.folderName)+'</td>'
         + '</tr>';
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
     document.getElementById('qa-body').innerHTML = html;
     updateActionButtons();
   }
-
   function selectedIndices() {
-    return Array.prototype.slice.call(document.querySelectorAll('.rowchk:checked'))
-      .map(function(c){ return parseInt(c.getAttribute('data-i'),10); });
+    var out = [], cs = document.querySelectorAll('.rowchk:checked');
+    for (var i=0;i<cs.length;i++){ out.push(parseInt(cs[i].getAttribute('data-i'),10)); }
+    return out;
   }
-
   function toggleAll(on) {
-    document.querySelectorAll('.rowchk').forEach(function(c){ c.checked=on; });
-    var hdr = document.getElementById('hdrCheck'); if (hdr) hdr.checked=on;
+    var cs = document.querySelectorAll('.rowchk');
+    for (var i=0;i<cs.length;i++){ cs[i].checked = on; }
+    var hdr = document.getElementById('hdrCheck'); if (hdr) hdr.checked = on;
     updateActionButtons();
   }
-
   function updateActionButtons() {
     var idx = selectedIndices();
     document.getElementById('trashBtn').disabled = idx.length===0;
-    var anyFixable = idx.some(function(i){ return SCAN.rows[i] && SCAN.rows[i].proposedName; });
-    document.getElementById('renameBtn').disabled = !anyFixable;
+    var anyFix = idx.some(function(i){ return SCAN && SCAN.rows[i] && SCAN.rows[i].proposedName; });
+    document.getElementById('renameBtn').disabled = !anyFix;
   }
-
   function doTrash() {
-    var idx = selectedIndices();
-    if (!idx.length) return;
+    var idx = selectedIndices(); if (!idx.length) return;
     var live = idx.filter(function(i){ return SCAN.rows[i].live; }).length;
-    var msg = 'Move '+idx.length+' file(s) to Drive Trash (recoverable 30 days)?';
-    if (live) msg += '\n\n'+live+' of these are in the LIVE folder.';
+    var msg = 'Move ' + idx.length + ' file(s) to Drive Trash (recoverable 30 days)?';
+    if (live) msg += '\n\n' + live + ' of these are in the LIVE folder.';
     if (!confirm(msg)) return;
     var ids = idx.map(function(i){ return SCAN.rows[i].id; });
     setBusy(true);
     google.script.run
       .withSuccessHandler(function(results){
         var ok = results.filter(function(r){return r.ok;}).length;
-        flash('Trashed '+ok+' of '+results.length+' file(s).');
-        runScan();
+        flash('Trashed ' + ok + ' of ' + results.length + ' file(s).'); runScan();
       })
-      .withFailureHandler(function(err){ setBusy(false); flash('Trash failed: '+(err.message||err)); })
+      .withFailureHandler(function(err){ setBusy(false); flash('Trash failed: ' + (err.message||err)); })
       .qaTrash(ids);
   }
-
   function doRename() {
     var idx = selectedIndices().filter(function(i){ return SCAN.rows[i].proposedName; });
     if (!idx.length) { flash('None of the selected rows have an auto-fixable name.'); return; }
     var live = idx.filter(function(i){ return SCAN.rows[i].live; }).length;
-    var msg = 'Rename '+idx.length+' file(s) to their corrected names?';
-    if (live) msg += '\n\n'+live+' of these are in the LIVE folder.';
+    var msg = 'Rename ' + idx.length + ' file(s) to their corrected names?';
+    if (live) msg += '\n\n' + live + ' of these are in the LIVE folder.';
     if (!confirm(msg)) return;
     var items = idx.map(function(i){ return { id:SCAN.rows[i].id, newName:SCAN.rows[i].proposedName }; });
     setBusy(true);
     google.script.run
       .withSuccessHandler(function(results){
         var ok = results.filter(function(r){return r.ok;}).length;
-        flash('Renamed '+ok+' of '+results.length+' file(s).');
-        runScan();
+        flash('Renamed ' + ok + ' of ' + results.length + ' file(s).'); runScan();
       })
-      .withFailureHandler(function(err){ setBusy(false); flash('Rename failed: '+(err.message||err)); })
+      .withFailureHandler(function(err){ setBusy(false); flash('Rename failed: ' + (err.message||err)); })
       .qaRename(items);
   }
-
-  function setBusy(b) {
-    ['scanBtn','trashBtn','renameBtn','selAll','selNone'].forEach(function(id){
-      document.getElementById(id).disabled = b;
-    });
-  }
-
-  // Auto-run a scan on load so the page opens with live data.
-  window.addEventListener('load', runScan);
+  // Shell is painted by the HTML above. No on-load scan takeover (that was the blank-page cause).
+  // Populate the signed-in name non-destructively via a PUBLIC wrapper (no trailing underscore).
+  window.addEventListener('load', function(){
+    try {
+      google.script.run.withSuccessHandler(function(email){
+        var who = document.getElementById('who');
+        if (who && email) who.innerHTML = 'Signed in<br>' + esc(email);
+      }).getSignedInEmail();
+    } catch (e) { /* header name is cosmetic */ }
+  });
 </script>
 </body>
 </html>
