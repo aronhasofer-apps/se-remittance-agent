@@ -275,3 +275,9 @@ function logQaAction_(kind, results) {
     });
   } catch (e) { /* logging must never break the action */ }
 }
+
+/** Public wrapper so the web app UI can show the signed-in user (google.script.run
+ *  cannot call functions whose names end in an underscore). */
+function getSignedInEmail() {
+  return getActiveUser_();
+}
