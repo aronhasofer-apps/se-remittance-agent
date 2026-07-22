@@ -77,10 +77,29 @@ function effectiveConfig_() {
   function num(key, dflt) { const v = p.getProperty(key); const n = v == null ? NaN : Number(v); return isFinite(n) ? n : dflt; }
   function str(key, dflt) { const v = p.getProperty(key); return (v == null || v === '') ? dflt : v; }
   return {
-    mode: str('SET_MODE', CONFIG.MODE),
     lookbackDays: num('SET_LOOKBACK_DAYS', CONFIG.LOOKBACK_DAYS),
     maxPerRun: num('SET_MAX_PER_RUN', CONFIG.MAX_PROCESS_PER_RUN),
   };
+}
+
+/**
+ * The true backlog: how many remittance emails are sitting UNREAD in the mailbox,
+ * regardless of whether the agent has touched them. This is the honest "what's left
+ * for a human" number — not the app's internal log count.
+ */
+function inboxBacklog_() {
+  const cfg = effectiveConfig_();
+  // Unread mail addressed to / relayed from the remittance group in the lookback window.
+  const q = '{to:' + CONFIG.GROUP_ADDRESS + ' list:' + CONFIG.GROUP_ADDRESS + ' deliveredto:' + CONFIG.GROUP_ADDRESS + '} is:unread newer_than:' + cfg.lookbackDays + 'd';
+  let unread = 0;
+  try {
+    const threads = GmailApp.search(q, 0, 100);
+    // Count unread MESSAGES (not threads) for an accurate figure.
+    threads.forEach(function (t) {
+      t.getMessages().forEach(function (m) { if (m.isUnread()) unread++; });
+    });
+  } catch (e) { unread = -1; } // -1 = couldn't read the inbox
+  return { unread: unread, lookbackDays: cfg.lookbackDays };
 };
 
 // ========================= ENTRY POINTS =========================
@@ -130,7 +149,6 @@ function runRemittanceScan() {
         else if (outcome.status === 'GENERATED') counts.generated++;
         else if (outcome.status === 'DUPLICATE') counts.duplicate++;
         else counts.flagged++;
-        if (EFFCFG.mode === 'live') applyMarker_(msg);
       }
 
       rows.push([
