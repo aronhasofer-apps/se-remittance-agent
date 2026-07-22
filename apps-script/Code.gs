@@ -530,6 +530,7 @@ function extractFromBody_(msg, v) {
   else if (/^ramp/.test(ruleId))                     r = extractRamp_(subject, body);
   else if (ruleId === 'merck-body')                  r = extractMerck_(text);
   else if (ruleId === 'coupa-body' || ruleId === 'neurocrine-body') r = extractCoupa_(subject, body, ruleId);
+  else if (/^regeneron/.test(ruleId))                r = extractRegeneron_(text);
   else                                               r = extractGenericBody_(text);
   if (!r) r = extractGenericBody_(text);
 
@@ -667,6 +668,25 @@ function extractCoupa_(subject, body, ruleId) {
 }
 
 /** Generic remittance-advice body (Regeneron, VIR/FISPAN, SVB-style layouts). */
+/**
+ * Regeneron "Payment Remittance Advice" (arrives with subject "Separate Remittance Advice").
+ * Payor follows "From Payer"; the payment total follows "Payment Amount" (no $ symbol, on the
+ * next line - which defeated the generic amount finder); currency follows "Payment Currency";
+ * clean RI-/CN- invoices sit in the Remittance Detail table.
+ */
+function extractRegeneron_(text) {
+  let payor = '';
+  let m = text.match(/From Payer\s*[\r\n:]+\s*([^\r\n]+)/i);
+  if (m) payor = m[1].trim();
+  let amount = null;
+  m = text.match(/Payment Amount\s*[\r\n:]*\s*([\d,]+\.\d{2})/i);
+  if (m) amount = toNum_(m[1]);
+  let currency = 'USD';
+  m = text.match(/Payment Currency\s*[\r\n:]*\s*([A-Z]{3})/i);
+  if (m) currency = m[1].toUpperCase();
+  return { payor: payor || 'Regeneron', amount: amount, currency: currency, invoices: findInvoices_(text) };
+}
+
 function extractGenericBody_(text) {
   let payor = null;
   let m = text.match(/From Payer\s*[\r\n:]+\s*([^\r\n]+)/i) ||
@@ -877,6 +897,7 @@ function resolveFilename_(savedSheet, base, invoices) {
 // ====================== EXTRACTION HELPERS ======================
 
 const SHORT_NAMES = [
+  [/\bregeneron\b/i, 'Regeneron'],
   [/\bsyngenta\b/i, 'Syngenta'],
   [/glaxosmithkline|(^|\W)gsk(\W|$)/i, 'GSK'],
   [/bristol[- ]?myers|(^|\W)bms(\W|$)/i, 'BMS'],
