@@ -171,6 +171,7 @@
       <div class="toolbar">
         <button class="btn primary" id="revLoad" onclick="loadReview()">Refresh</button>
         <button class="btn" id="revRerun" onclick="rerunEngine()">Run agent now</button>
+        <button class="btn" id="revReeval" onclick="reevaluateQueue()">Re-evaluate queue</button>
         <span class="spacer"></span>
         <span id="revMode" class="sub-cell"></span>
       </div>
@@ -294,6 +295,21 @@
     } catch(e){ reviewErr('Could not start: '+(e.message||e)); if(b){b.disabled=false;b.textContent='Refresh';} }
   }
   function reviewErr(m){ document.getElementById('review-body').innerHTML='<div class="state"><div class="glyph">&#9888;</div><div class="headline">Couldn\u2019t load</div><div class="detail">'+esc(m)+'</div><button class="btn primary" onclick="loadReview()">Try again</button></div>'; }
+  function reevaluateQueue(){
+    var b=document.getElementById('revReeval');
+    if(b){ b.disabled=true; b.textContent='Re-evaluating\u2026'; }
+    flash('Re-evaluating the backlog (up to 25 at a time)\u2026 this can take a minute.');
+    google.script.run
+      .withSuccessHandler(function(res){
+        if(b){ b.disabled=false; b.textContent='Re-evaluate queue'; }
+        var msg='Re-evaluated '+res.scanned+': '+res.nowSkipped+' skipped, '+res.nowSaved+' saved, '+(res.alreadyInFolder||0)+' already on file, '+res.stillFlagged+' still need review.';
+        if(res.remaining>0) msg+=' '+res.remaining+' left \u2014 click Re-evaluate queue again to continue.';
+        flash(msg);
+        loadReview();
+      })
+      .withFailureHandler(function(err){ if(b){ b.disabled=false; b.textContent='Re-evaluate queue'; } flash('Re-evaluate failed: '+(err&&err.message?err.message:String(err))); })
+      .reevaluateBacklog();
+  }
   function rerunEngine(){
     var b=document.getElementById('revRerun');
     if(!confirm('Run the agent now? It scans the last several days of remittance mail and processes anything new.')) return;
