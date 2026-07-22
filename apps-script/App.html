@@ -251,7 +251,7 @@
     for (var i=0;i<b.length;i++) b[i].classList.toggle('active', b[i].getAttribute('data-page')===p);
     // Lazy-load each page the first time it's shown.
     if (p==='review' && !REVIEW) loadReview();
-    if (p==='log' && !RUNLOG) loadLog();
+    if (p==='log' && !AUDIT) loadLog();
     if (p==='settings' && !SETTINGS) loadSettings();
   }
   // ---- Nav tab badges ----
@@ -492,7 +492,7 @@
     var b=document.getElementById('logLoad'); if(b){b.disabled=true;b.textContent='Loading\u2026';}
     document.getElementById('log-body').innerHTML='<div class="state"><div class="spinner"></div><div class="headline" style="margin-top:12px">Loading audit history</div></div>';
     google.script.run
-      .withSuccessHandler(function(res){ AUDIT=res; renderAudit(res); if(b){b.disabled=false;b.textContent='Refresh';} })
+      .withSuccessHandler(function(res){ AUDIT=res; try{ renderAudit(res); }catch(e){ document.getElementById('log-body').innerHTML='<div class="state"><div class="glyph">&#9888;</div><div class="headline">Render error</div><div class="detail">'+esc(String((e&&e.message)||e))+'</div></div>'; } if(b){b.disabled=false;b.textContent='Refresh';} })
       .withFailureHandler(function(err){ document.getElementById('log-body').innerHTML='<div class="state"><div class="glyph">&#9888;</div><div class="headline">Couldn\u2019t load</div><div class="detail">'+esc(err.message||err)+'</div></div>'; if(b){b.disabled=false;b.textContent='Refresh';} })
       .getAuditLog(40);
   }
