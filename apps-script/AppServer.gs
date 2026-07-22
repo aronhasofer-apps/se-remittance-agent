@@ -325,6 +325,8 @@ function reviewData() {
       const amount = r[13] === '' || r[13] == null ? null : r[13];
 
       const item = {
+        id: r[11] || '',
+        from: r[3] || '',
         emailDate: fmtCell_(r[1], tz),
         subject: r[4] || '',
         payor: payor,
@@ -345,6 +347,8 @@ function reviewData() {
       const isStuck = (outcome === 'FLAGGED') || (payor === '' && outcome !== 'SKIPPED' && outcome !== 'ALREADY PROCESSED');
       if (isStuck) {
         item.needsName = (payor === '');   // show a name field when we couldn't read the payor
+        // Pre-suggest a short name so the reviewer confirms rather than types blind.
+        item.suggestedName = payor || suggestName_(item.subject, r[3], payorRaw);
         if (item.needsName) counts.needsName++;
         needsAttention.push(item);
       } else {
@@ -895,4 +899,142 @@ function sectionTitle_(t, color) {
 function sendTestDigest() {
   try { sendDailyDigest(); return { ok: true }; }
   catch (e) { return { ok: false, error: String(e) }; }
+}
+
+// ============================================================
+//  APPROVE A REVIEW ROW — set the correct payor, reprocess that
+//  ONE email, and rename-in-place (if a file exists) or create it.
+//  Optionally records a rule (sender OR subject) for future mail.
+// ============================================================
+
+/** Best-guess short name for an unresolved row, from subject + sender. */
+function suggestName_(subject, from, rawPayor) {
+  const hay = String(subject || '') + ' ' + String(from || '');
+  try {
+    for (let i = 0; i < SHORT_NAMES.length; i++) {
+      if (SHORT_NAMES[i][0].test(hay)) return SHORT_NAMES[i][1];
+    }
+  } catch (e) {}
+  // Company-looking phrase at the start of a BILL/Ramp-style subject.
+  let m = String(subject || '').match(/^([A-Z][A-Za-z0-9&.,'’\- ]+?)\s+(?:sent you|is on the way|received your|has sent you|will be deposited|sent a payment|initiated a payment)/);
+  if (m) { try { return shortName_(m[1].trim(), ''); } catch (e) { return m[1].trim(); } }
+  // Sender-domain hint (skip infrastructure-y subdomains).
+  const dm = String(from || '').match(/@([a-z0-9.-]+)/i);
+  if (dm) {
+    const dom = dm[1].split('.')[0];
+    if (dom && dom.length > 2 && !/mail|smtp|no-?reply|noreply|erp|notif|payment|remit|account|finance|service|do-?not/.test(dom)) {
+      return dom.charAt(0).toUpperCase() + dom.slice(1);
+    }
+  }
+  return '';
+}
+
+/**
+ * payload = {
+ *   messageId, shortName,
+ *   action?,                         // 'save_attachment' | 'extract_body' (else inferred)
+ *   makeRule?, ruleSignal?, ruleValue?   // ruleSignal 'from' | 'subject'
+ * }
+ */
+function reviewApproveRow(payload) {
+  try {
+    if (!payload || !payload.messageId || !payload.shortName) {
+      return { ok: false, error: 'Need a message and a short name.' };
+    }
+    const shortName = String(payload.shortName).trim();
+    const log = getLog_();
+
+    // Optionally persist a rule for FUTURE mail (sender or subject signal).
+    let ruleNote = '';
+    if (payload.makeRule && payload.ruleValue) {
+      const match = {};
+      if (payload.ruleSignal === 'from') match.from_contains = [String(payload.ruleValue).trim()];
+      else match.subject_contains = [String(payload.ruleValue).trim()];
+      const action0 = (['save_attachment', 'extract_body', 'skip', 'flag'].indexOf(payload.action) !== -1) ? payload.action : 'save_attachment';
+      const p = PropertiesService.getScriptProperties();
+      let list = []; try { const raw = p.getProperty('LOCAL_RULES'); if (raw) list = JSON.parse(raw); } catch (e) {}
+      list.push({ id: 'local-' + Date.now(), match: match, action: action0, short_name: shortName, created: new Date().toISOString(), createdBy: getActiveUser_() });
+      p.setProperty('LOCAL_RULES', JSON.stringify(list));
+      ruleNote = 'Rule saved (' + (payload.ruleSignal === 'from' ? 'sender' : 'subject') + ' contains "' + payload.ruleValue + '"), so future mail is handled automatically.';
+    }
+
+    // Locate the Messages row (Message ID = col 12).
+    const msgs = log.messages;
+    const last = msgs.getLastRow();
+    let rowIdx = -1;
+    if (last >= 2) {
+      const ids = msgs.getRange(2, 12, last - 1, 1).getValues();
+      for (let i = ids.length - 1; i >= 0; i--) {
+        if (String(ids[i][0]) === String(payload.messageId)) { rowIdx = i + 2; break; }
+      }
+    }
+
+    // Locate an existing saved file for this message (Saved: Message ID = col 8, File link = col 9).
+    const saved = log.saved;
+    let savedRowIdx = -1, savedVals = null;
+    const slast = saved.getLastRow();
+    if (slast >= 2) {
+      const sids = saved.getRange(2, 8, slast - 1, 1).getValues();
+      for (let i = sids.length - 1; i >= 0; i--) {
+        if (String(sids[i][0]) === String(payload.messageId)) { savedRowIdx = i + 2; break; }
+      }
+    }
+    if (savedRowIdx !== -1) savedVals = saved.getRange(savedRowIdx, 1, 1, 9).getValues()[0];
+
+    // If the reviewer chose skip/flag, record the decision — don't write a file.
+    if (payload.action === 'skip' || payload.action === 'flag') {
+      if (rowIdx !== -1) {
+        msgs.getRange(rowIdx, 9).setValue(shortName || '');
+        msgs.getRange(rowIdx, 10).setValue(payload.action === 'skip' ? 'SKIPPED' : 'FLAGGED');
+        msgs.getRange(rowIdx, 11).setValue('Set to ' + payload.action + ' in Review');
+      }
+      return { ok: true, mode: payload.action, note: 'Marked as ' + payload.action + '. ' + ruleNote };
+    }
+
+    // BRANCH A — a file already exists: rename it in place to the corrected name.
+    if (savedVals && savedVals[8]) {
+      const idMatch = String(savedVals[8]).match(/[-\w]{25,}/);
+      if (!idMatch) return { ok: false, error: 'Found the log row but could not parse the existing file id.' };
+      const fileId = idMatch[0];
+      const amtNum = toNum_(String(savedVals[2]));
+      const currency = String(savedVals[3] || 'USD');
+      const newName = buildFilename_({ amount: amtNum, currency: currency, shortName: shortName }, 'pdf');
+      try { DriveApp.getFileById(fileId).setName(newName); }
+      catch (e) { return { ok: false, error: 'Rename failed: ' + e }; }
+      saved.getRange(savedRowIdx, 2).setValue(newName);
+      saved.getRange(savedRowIdx, 6).setValue(shortName);
+      if (rowIdx !== -1) { msgs.getRange(rowIdx, 9).setValue(shortName); msgs.getRange(rowIdx, 17).setValue(newName); }
+      const vres = validateSavedFile_(fileId, newName);
+      logQaAction_('APPROVE-RENAME', [{ id: fileId, ok: vres.ok, from: savedVals[1], to: newName }]);
+      return { ok: vres.ok, mode: 'renamed', filename: newName,
+               note: (vres.ok ? 'Renamed to ' + newName + ' and verified in the live folder. ' : 'Renamed, but validation flagged: ' + vres.reason + '. ') + ruleNote };
+    }
+
+    // BRANCH B — no file yet: reprocess this email now and write it.
+    let msg;
+    try { msg = GmailApp.getMessageById(payload.messageId); }
+    catch (e) { return { ok: false, error: 'Could not open the email to reprocess: ' + e }; }
+    const action = (['save_attachment', 'extract_body'].indexOf(payload.action) !== -1)
+      ? payload.action
+      : (pickAttachment_(msg, true) ? 'save_attachment' : 'extract_body');
+    const verdict = { action: action, verdict: action.replace('_', ' ').toUpperCase(),
+                      ruleName: 'approved-in-review', ruleObj: { id: 'approved-in-review' },
+                      shortName: shortName, note: 'Approved in Review', alreadyDone: false };
+    const outcome = processMessage_(msg, verdict, getStagingFolder_(), log);
+    if (rowIdx !== -1) {
+      msgs.getRange(rowIdx, 9).setValue(outcome.shortName || shortName);
+      msgs.getRange(rowIdx, 10).setValue(outcome.status);
+      msgs.getRange(rowIdx, 11).setValue(outcome.note || '');
+      msgs.getRange(rowIdx, 14).setValue(outcome.amountText || '');
+      msgs.getRange(rowIdx, 15).setValue(outcome.currency || '');
+      msgs.getRange(rowIdx, 16).setValue((outcome.invoices || []).join(', '));
+      msgs.getRange(rowIdx, 17).setValue(outcome.filename || '');
+      msgs.getRange(rowIdx, 18).setValue(outcome.fileUrl || '');
+    }
+    const good = (outcome.status === 'SAVED' || outcome.status === 'GENERATED');
+    return { ok: good, mode: 'processed', status: outcome.status, filename: outcome.filename || '',
+             note: (good ? 'Wrote ' + outcome.filename + ' to the live folder. ' : (outcome.note || outcome.status) + '. ') + ruleNote };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 }
