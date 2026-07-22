@@ -544,75 +544,86 @@ function refreshRulesNow() {
 // ============================================================
 
 /** Returns the most recent runs (newest first) for the Run Log page. */
-function getRunLog(limit) {
+function getAuditLog(limit) {
   const log = getLog_();
   const tz = Session.getScriptTimeZone();
-  const runs = log.runs;
-  const last = runs.getLastRow();
-  const rows = [];
-  if (last >= 2) {
-    const n = Math.min(limit || 40, last - 1);
-    const startRow = last - n + 1;
-    // RUN_HEADERS: 0 Run at | 1 In window | 2 New logged | 3 Rules loaded | 4 Rules version | 5 Rules source | 6 Error | 7 Outcomes
-    const rng = runs.getRange(startRow, 1, n, 8).getValues();
+
+  // ---- Agent runs ----
+  const runs = [];
+  const runsSheet = log.runs;
+  let rlast = runsSheet.getLastRow();
+  if (rlast >= 2) {
+    const n = Math.min(limit || 40, rlast - 1);
+    const rng = runsSheet.getRange(rlast - n + 1, 1, n, 8).getValues();
     for (let i = rng.length - 1; i >= 0; i--) {
       const r = rng[i];
-      rows.push({
-        at: fmtCell_(r[0], tz),
-        inWindow: r[1],
-        newLogged: r[2],
-        rulesLoaded: r[3],
-        rulesVersion: r[4],
-        rulesSource: r[5],
-        error: r[6] || '',
-        outcomes: r[7] || '',
-      });
+      runs.push({ at: fmtCell_(r[0], tz), inWindow: r[1], newLogged: r[2], rulesLoaded: r[3],
+        rulesVersion: r[4], rulesSource: r[5], error: r[6] || '', outcomes: r[7] || '' });
     }
   }
-  // Also surface recent saved files (Saved tab) as a secondary feed.
-  let saved = [];
+
+  // ---- Messages-derived: saved / skipped / flagged (each row keeps a link home) ----
+  const saved = [], skipped = [], flagged = [];
+  const m = log.messages;
+  const lr = m.getLastRow();
+  if (lr >= 2) {
+    const count = Math.min(400, lr - 1);
+    const mr = m.getRange(lr - count + 1, 1, count, 18).getValues();
+    for (let i = mr.length - 1; i >= 0; i--) {
+      const r = mr[i];
+      const at = fmtCell_(r[0], tz);
+      const pdf = String(r[5]).toLowerCase() === 'yes';
+      const verdict = String(r[6] || '');
+      const payorRaw = String(r[8] || '').trim();
+      const outcome = String(r[9] || '').toUpperCase();
+      const note = r[10] || '';
+      const emailUrl = r[12] || '';
+      const subject = r[4] || '';
+      const method = /save/i.test(verdict) ? 'Saved PDF attachment'
+                   : (/extract|body/i.test(verdict) ? 'Generated from body' : (verdict || ''));
+      const docType = pdf ? 'PDF' : 'No attachment';
+
+      if (outcome === 'SAVED' || outcome === 'GENERATED') {
+        saved.push({ at: at, payor: payorRaw, amount: r[13], currency: r[14], method: method,
+          docType: docType, invoices: r[15] || '', filename: r[16] || '', fileUrl: r[17] || '',
+          emailUrl: emailUrl, subject: subject });
+      } else if (outcome === 'SKIPPED' || outcome === 'ALREADY PROCESSED') {
+        const already = (outcome === 'ALREADY PROCESSED') || /already/i.test(String(note));
+        skipped.push({ at: at, payor: payorRaw, subject: subject, rule: r[7] || '',
+          reason: note || (outcome === 'ALREADY PROCESSED' ? 'Already processed on a prior run' : 'Matched a skip rule'),
+          already: already, emailUrl: emailUrl });
+      } else if (outcome === 'FLAGGED' || (!payorRaw || looksLikePayorJunk_(payorRaw))) {
+        let guess = (payorRaw && !looksLikePayorJunk_(payorRaw)) ? payorRaw : '';
+        if (!guess) { try { guess = suggestName_(subject, r[3], payorRaw) || ''; } catch (e) {} }
+        flagged.push({ at: at, payor: guess, subject: subject,
+          reason: note || outcome || 'Needs review', emailUrl: emailUrl });
+      }
+    }
+  }
+
+  // ---- QA actions ----
+  const qa = [];
   try {
-    const sv = log.ss.getSheetByName('Saved');
-    if (sv) {
-      const lr = sv.getLastRow();
-      if (lr >= 2) {
-        const m = Math.min(20, lr - 1);
-        const srng = sv.getRange(lr - m + 1, 1, m, 9).getValues();
-        for (let i = srng.length - 1; i >= 0; i--) {
-          const s = srng[i];
-          saved.push({ at: fmtCell_(s[0], tz), filename: s[1], amount: s[2], currency: s[3],
-            invoices: s[4], payor: s[5], subject: s[6], fileUrl: s[8] });
+    const qs = log.ss.getSheetByName('QA Actions');
+    if (qs) {
+      const ql = qs.getLastRow();
+      if (ql >= 2) {
+        const n = Math.min(120, ql - 1);
+        const qr = qs.getRange(ql - n + 1, 1, n, 5).getValues();
+        for (let i = qr.length - 1; i >= 0; i--) {
+          const r = qr[i];
+          qa.push({ at: r[0], user: r[1], action: r[2], detail: r[3], ok: String(r[4]).toLowerCase() === 'yes' });
         }
       }
     }
   } catch (e) {}
-  // Skipped emails feed (from Messages tab where outcome is SKIPPED/ALREADY PROCESSED),
-  // with reason + which rule matched, so the Run Log can show and filter them.
-  let skipped = [];
-  try {
-    const m = log.messages;
-    const lr = m.getLastRow();
-    if (lr >= 2) {
-      const count = Math.min(80, lr - 1);
-      const mr = m.getRange(lr - count + 1, 1, count, 18).getValues();
-      for (let i = mr.length - 1; i >= 0; i--) {
-        const r = mr[i];
-        const outcome = String(r[9] || '').toUpperCase();
-        if (outcome === 'SKIPPED' || outcome === 'ALREADY PROCESSED') {
-          skipped.push({
-            at: fmtCell_(r[0], tz),
-            from: r[3] || '',
-            subject: r[4] || '',
-            reason: r[10] || (outcome === 'ALREADY PROCESSED' ? 'Already processed on a prior run' : 'Matched a skip rule'),
-            rule: r[7] || '',
-            outcome: outcome,
-          });
-        }
-      }
-    }
-  } catch (e) {}
-  return { user: getActiveUser_(), generatedAt: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm'), runs: rows, saved: saved, skipped: skipped };
+
+  return { user: getActiveUser_(), generatedAt: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm'),
+    runs: runs, saved: saved, skipped: skipped, flagged: flagged, qa: qa };
 }
+
+// Back-compat alias (older UI builds called getRunLog).
+function getRunLog(limit) { return getAuditLog(limit); }
 
 
 /** Standalone backlog fetch for the Review header refresh. */
