@@ -4,6 +4,8 @@
 <base target="_top">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%239a7b1f'/%3E%3Ccircle cx='16' cy='16' r='15' fill='none' stroke='%23ffffff' stroke-opacity='0.25' stroke-width='1.5'/%3E%3Ctext x='16' y='21' font-family='Georgia,serif' font-size='13' font-weight='700' fill='white' text-anchor='middle'%3ESE%3C/text%3E%3C/svg%3E">
+
 <style>
   :root {
     --ink:#0f1e2e; --slate:#33475b; --muted:#6b7a89; --paper:#f5f7fa; --card:#ffffff;
@@ -135,6 +137,13 @@
     transition:opacity .2s, transform .2s; z-index:60; max-width:80%; }
   .flash.show { opacity:1; transform:translateX(-50%) translateY(0); }
   @media (prefers-reduced-motion: reduce) { .spinner { animation:none; } .flash { transition:none; } }
+
+  /* Nav tab notification badges */
+  nav button { position:relative; }
+  .tab-badge { display:inline-flex; align-items:center; justify-content:center; min-width:17px; height:17px;
+    padding:0 5px; margin-left:6px; border-radius:9px; background:var(--red); color:#fff; font-size:10.5px;
+    font-weight:800; vertical-align:middle; }
+  .tab-dot { display:inline-block; width:8px; height:8px; margin-left:6px; border-radius:50%; background:var(--red); vertical-align:middle; }
 </style>
 </head>
 <body>
@@ -147,8 +156,8 @@
       </div>
     </div>
     <nav>
-      <button class="active" data-page="review" onclick="showPage('review')">Review</button>
-      <button data-page="qa" onclick="showPage('qa')">QA Cleanup</button>
+      <button class="active" data-page="review" onclick="showPage('review')">Review<span id="badge-review"></span></button>
+      <button data-page="qa" onclick="showPage('qa')">QA Cleanup<span id="badge-qa"></span></button>
       <button data-page="log" onclick="showPage('log')">Run Log</button>
       <button data-page="settings" onclick="showPage('settings')">Settings</button>
     </nav>
@@ -181,7 +190,7 @@
     <!-- ===================== QA CLEANUP ===================== -->
     <div id="page-qa" style="display:none">
       <h2 class="page-title">QA Cleanup</h2>
-      <div class="page-lede">Audits the staging and live folders for naming and invoice problems. Proposes fixes &mdash; you approve each one.</div>
+      <div class="page-lede">Audits your remittance folders for naming and invoice problems. Proposes fixes &mdash; you approve each one.</div>
       <div class="note">Nothing changes until you tick rows and choose an action. Trash goes to Drive Trash (recoverable 30 days). Rename fixes the filename only &mdash; it never edits invoices inside a file.</div>
       <div class="toolbar">
         <button class="btn primary" id="scanBtn" onclick="runScan()">Scan folders</button>
@@ -199,7 +208,7 @@
       </div>
       <div id="qa-body">
         <div class="state"><div class="glyph">&#128269;</div><div class="headline">Ready to scan</div>
-          <div class="detail">Check the staging and live folders for issues.</div>
+          <div class="detail">Check your remittance folders for issues.</div>
           <button class="btn primary" onclick="runScan()">Scan folders</button></div>
       </div>
     </div>
@@ -244,6 +253,19 @@
     if (p==='log' && !RUNLOG) loadLog();
     if (p==='settings' && !SETTINGS) loadSettings();
   }
+  // ---- Nav tab badges ----
+  function refreshBadges(){
+    try {
+      google.script.run.withSuccessHandler(function(b){ paintBadges(b); }).getBadges();
+    } catch(e){}
+  }
+  function paintBadges(b){
+    var rv=document.getElementById('badge-review');
+    if(rv){ rv.innerHTML = (b && b.review>0) ? ('<span class="tab-badge">'+b.review+'</span>') : ''; }
+    var qa=document.getElementById('badge-qa');
+    if(qa){ qa.innerHTML = (b && b.qa) ? '<span class="tab-dot" title="QA has flagged files"></span>' : ''; }
+  }
+
   function flash(m){ var f=document.getElementById('flash'); f.textContent=m; f.classList.add('show'); setTimeout(function(){f.classList.remove('show');},3300); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function setWho(email){ /* header no longer shows a personal email; identity lives in Settings > Connection */ }
@@ -291,6 +313,7 @@
       m.innerHTML=parts.join(' &nbsp;\u00b7&nbsp; ');
     }
     var needs=res.needsAttention||[], handled=res.handled||[];
+    var rvb=document.getElementById('badge-review'); if(rvb){ rvb.innerHTML = needs.length>0 ? ('<span class="tab-badge">'+needs.length+'</span>') : ''; }
     document.getElementById('rv-attn').textContent=needs.length;
     document.getElementById('rv-saved').textContent=(res.counts.saved||0)+(res.counts.generated||0);
     document.getElementById('rv-skip').textContent=res.counts.skipped||0;
@@ -375,7 +398,7 @@
   var SCAN=null;
   function runScan(){
     var b=document.getElementById('scanBtn'); if(b){b.disabled=true;b.textContent='Scanning\u2026';}
-    document.getElementById('qa-body').innerHTML='<div class="state"><div class="spinner"></div><div class="headline" style="margin-top:12px">Scanning folders</div><div class="detail">Reading staging and live \u2014 a few seconds.</div></div>';
+    document.getElementById('qa-body').innerHTML='<div class="state"><div class="spinner"></div><div class="headline" style="margin-top:12px">Scanning folders</div><div class="detail">Reading your folders \u2014 a few seconds.</div></div>';
     try {
       google.script.run
         .withSuccessHandler(function(res){ try{SCAN=res;renderScan(res);}catch(e){qaErr(e.message||e);} if(b){b.disabled=false;b.textContent='Rescan';} })
@@ -392,6 +415,7 @@
     document.getElementById('s-live').textContent=rows.filter(function(r){return r.live;}).length;
     document.getElementById('s-fix').textContent=rows.filter(function(r){return r.proposedName;}).length;
     document.getElementById('qaStats').style.display='flex';
+    var qab=document.getElementById('badge-qa'); if(qab){ qab.innerHTML = rows.length>0 ? '<span class="tab-dot"></span>' : ''; }
     var en=rows.length>0; ['selAll','selNone'].forEach(function(id){document.getElementById(id).disabled=!en;});
     if(!rows.length){ document.getElementById('qa-body').innerHTML='<div class="state"><div class="glyph" style="color:var(--green)">&#10003;</div><div class="headline">Everything looks clean</div><div class="detail">No naming or invoice issues as of '+esc(res.generatedAt)+'.</div></div>'; qaUpdateBtns(); return; }
     var h='<div class="card"><table><thead><tr><th style="width:34px"><input type="checkbox" id="hdrCheck" onclick="qaToggleAll(this.checked)"></th><th>Severity</th><th>File</th><th>Proposed fix</th><th>Folder</th></tr></thead><tbody>';
@@ -477,10 +501,15 @@
 
   // ==================== SETTINGS ====================
   var SETTINGS=null;
+  var NOTIFY=null;
   function loadSettings(){
     document.getElementById('settings-body').innerHTML='<div class="state"><div class="spinner"></div><div class="headline" style="margin-top:12px">Loading settings</div></div>';
     google.script.run
-      .withSuccessHandler(function(res){ SETTINGS=res; renderSettings(res); })
+      .withSuccessHandler(function(res){ SETTINGS=res;
+        google.script.run.withSuccessHandler(function(n){ NOTIFY=n; renderSettings(res); })
+          .withFailureHandler(function(){ NOTIFY={recipients:'',digestHour:8,qaScanEveryHours:4}; renderSettings(res); })
+          .getNotifySettings();
+      })
       .withFailureHandler(function(err){ document.getElementById('settings-body').innerHTML='<div class="state"><div class="glyph">&#9888;</div><div class="headline">Couldn\u2019t load</div><div class="detail">'+esc(err.message||err)+'</div></div>'; })
       .getSettings();
   }
@@ -506,6 +535,20 @@
       h+='<div class="rule-item"><span class="badge b-brand">'+esc(r.action)+'</span><span style="font-weight:600">'+esc(r.short_name||'(no name)')+'</span><span class="sub-cell">'+match+'</span><span class="spacer"></span><button class="btn sm ghost" onclick="delRule(\''+esc(r.id)+'\')">Remove</button></div>';
     }); }
     h+='</div></div>';
+    // Card: Notifications
+    var hrOpts=''; for(var hh=0;hh<24;hh++){ var label=(hh===0?'12 AM':hh<12?hh+' AM':hh===12?'12 PM':(hh-12)+' PM'); hrOpts+='<option value="'+hh+'"'+((NOTIFY&&NOTIFY.digestHour===hh)?' selected':'')+'>'+label+'</option>'; }
+    var qaOpts=''; [1,2,3,4,6,8,12].forEach(function(q){ qaOpts+='<option value="'+q+'"'+((NOTIFY&&NOTIFY.qaScanEveryHours===q)?' selected':'')+'>every '+q+' hour'+(q>1?'s':'')+'</option>'; });
+    h+='<div class="card"><div class="card-head">Notifications</div><div class="card-body">';
+    h+='<div class="set-row"><div class="set-label"><div class="t">Email recipients</div><div class="d">Who receives the daily digest. Comma-separated. Leave empty to send nothing.</div></div>'
+      +'<div class="set-control"><input class="inp" id="notify-recipients" style="width:340px;font-family:inherit" placeholder="name@scienceexchange.com, name2@…" value="'+esc((NOTIFY&&NOTIFY.recipients)||'')+'"></div></div>';
+    h+='<div class="set-row"><div class="set-label"><div class="t">Daily digest time</div><div class="d">Approximate hour the summary is sent (within about an hour).</div></div>'
+      +'<div class="set-control"><select class="inp" id="notify-hour" style="font-family:inherit">'+hrOpts+'</select></div></div>';
+    h+='<div class="set-row"><div class="set-label"><div class="t">QA auto-scan</div><div class="d">How often the background QA scan runs. Issues appear in the digest.</div></div>'
+      +'<div class="set-control"><select class="inp" id="notify-qa" style="font-family:inherit">'+qaOpts+'</select></div></div>';
+    h+='<div style="margin-top:14px"><button class="btn primary" onclick="saveNotify()">Save notifications</button> <button class="btn" onclick="testDigest()" style="margin-left:6px">Send test digest now</button></div>';
+    h+='<div class="sub-cell" style="margin-top:8px">The digest sends every day (even when all-clear) so silence means something\u2019s wrong, not just quiet.</div>';
+    h+='</div></div>';
+
     // Card 3: connection facts
     h+='<div class="card"><div class="card-head">Connection</div><div class="card-body">';
     h+='<div class="kv"><div class="k">Mailbox</div><div class="v">'+esc(s.groupAddress)+'</div></div>';
@@ -521,6 +564,21 @@
       .withFailureHandler(function(err){ flash('Save failed: '+(err.message||err)); })
       .saveSettings(payload);
   }
+  function saveNotify(){
+    var payload={ recipients:document.getElementById('notify-recipients').value, digestHour:document.getElementById('notify-hour').value, qaScanEveryHours:document.getElementById('notify-qa').value };
+    google.script.run
+      .withSuccessHandler(function(res){ if(res.ok){ flash('Notifications saved'+(res.changed&&res.changed.length?(' ('+res.changed.join(', ')+')'):'')+'. Schedule updated.'); loadSettings(); } else flash('Not saved: '+(res.error||'')); })
+      .withFailureHandler(function(err){ flash('Save failed: '+(err.message||err)); })
+      .saveNotifySettings(payload);
+  }
+  function testDigest(){
+    var r=document.getElementById('notify-recipients').value.trim();
+    if(!r){ flash('Add at least one recipient first, then Save, then test.'); return; }
+    flash('Sending test digest\u2026');
+    google.script.run.withSuccessHandler(function(res){ flash(res.ok?'Test digest sent.':'Failed: '+(res.error||'')); })
+      .withFailureHandler(function(err){ flash('Failed: '+(err.message||err)); }).sendTestDigest();
+  }
+
   function refreshRules(){
     flash('Refreshing shared rules\u2026');
     google.script.run.withSuccessHandler(function(res){ if(res.ok) flash('Rules refreshed: v'+res.version+', '+res.count+' rules ('+res.source+').'); else flash('Refresh failed: '+res.error); loadSettings(); })
@@ -536,6 +594,7 @@
   window.addEventListener('load', function(){
     // Review is the default tab; load it.
     loadReview();
+    refreshBadges();
   });
 </script>
 </body>
