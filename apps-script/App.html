@@ -167,7 +167,7 @@
     <!-- ===================== REVIEW ===================== -->
     <div id="page-review">
       <h2 class="page-title">Review</h2>
-      <div class="page-lede">What the agent pulled from the remittance inbox. It processes everything it can on its own &mdash; you only act on what it couldn&rsquo;t place.</div>
+      <div class="page-lede">What the agent pulled from the remittance inbox and filed to the live cash-receipts folder. It processes everything it can on its own &mdash; you only act on what it couldn&rsquo;t place.</div>
       <div class="toolbar">
         <button class="btn primary" id="revLoad" onclick="loadReview()">Refresh</button>
         <button class="btn" id="revRerun" onclick="rerunEngine()">Run agent now</button>
@@ -190,7 +190,7 @@
     <!-- ===================== QA CLEANUP ===================== -->
     <div id="page-qa" style="display:none">
       <h2 class="page-title">QA Cleanup</h2>
-      <div class="page-lede">Audits your remittance folders for naming and invoice problems. Proposes fixes &mdash; you approve each one.</div>
+      <div class="page-lede">Audits the live cash-receipts folder for naming and invoice problems. Proposes fixes &mdash; you approve each one.</div>
       <div class="note">Nothing changes until you tick rows and choose an action. Trash goes to Drive Trash (recoverable 30 days). Rename fixes the filename only &mdash; it never edits invoices inside a file.</div>
       <div class="toolbar">
         <button class="btn primary" id="scanBtn" onclick="runScan()">Scan folders</button>
@@ -208,7 +208,7 @@
       </div>
       <div id="qa-body">
         <div class="state"><div class="glyph">&#128269;</div><div class="headline">Ready to scan</div>
-          <div class="detail">Check your remittance folders for issues.</div>
+          <div class="detail">Check the live cash-receipts folder for issues.</div>
           <button class="btn primary" onclick="runScan()">Scan folders</button></div>
       </div>
     </div>
@@ -496,7 +496,32 @@
       h+='</tbody></table>';
     }
     h+='</div>';
+
+    // Skipped emails — with a live filter box.
+    var sk=res.skipped||[];
+    h+='<div class="card"><div class="card-head">Skipped emails <span class="count" style="font-weight:600;color:var(--muted)">('+sk.length+')</span>'
+      +'<span class="spacer" style="flex:1"></span>'
+      +'<input class="inp" id="skipFilter" placeholder="Filter\u2026" style="font-family:inherit;font-size:12px;padding:5px 9px;width:180px" oninput="filterSkipped()">'
+      +'</div>';
+    if(!sk.length){ h+='<div class="card-body"><div class="sub-cell">No skipped emails recorded.</div></div>'; }
+    else {
+      h+='<table id="skipTable"><thead><tr><th>When</th><th>From</th><th>Subject</th><th>Reason</th></tr></thead><tbody>';
+      sk.forEach(function(s){
+        h+='<tr class="skip-row"><td class="mono" style="font-size:11px">'+esc(s.at)+'</td>'
+          +'<td class="sub-cell">'+esc((s.from||'').slice(0,32))+'</td>'
+          +'<td class="sub-cell" style="color:var(--slate);max-width:320px">'+esc((s.subject||'').slice(0,70))+'</td>'
+          +'<td class="sub-cell">'+esc(s.reason||'')+(s.rule?(' <span class="badge b-gray" style="font-size:10px">'+esc(s.rule)+'</span>'):'')+'</td></tr>';
+      });
+      h+='</tbody></table>';
+    }
+    h+='</div>';
+
     document.getElementById('log-body').innerHTML=h;
+  }
+  function filterSkipped(){
+    var q=(document.getElementById('skipFilter').value||'').toLowerCase();
+    var rows=document.querySelectorAll('#skipTable .skip-row');
+    for(var i=0;i<rows.length;i++){ rows[i].style.display = rows[i].textContent.toLowerCase().indexOf(q)>=0 ? '' : 'none'; }
   }
 
   // ==================== SETTINGS ====================
