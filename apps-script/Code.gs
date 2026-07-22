@@ -412,6 +412,15 @@ function processMessage_(msg, v, staging, log) {
     };
   }
 
+  // Extraction-QA gate - the single checkpoint that guarantees no incomplete or
+  // mislabeled record is ever written. Anything that fails here goes to Review
+  // instead of producing a bad file/row.
+  const vq = validateExtraction_(ext, !!ext.sourceBlob);
+  if (!vq.ok) {
+    return { status: 'FLAGGED', note: vq.reason, shortName: ext.shortName,
+             amountText: (ext.amount != null ? money_(ext.amount) : ''), currency: ext.currency, invoices: ext.invoices };
+  }
+
   const base = buildFilename_(ext, ext.fileExt || 'pdf');
   const resolved = resolveFilename_(log.saved, base, ext.invoices);
   if (resolved.duplicate) {
@@ -516,12 +525,19 @@ function extractFromBody_(msg, v) {
     return { ok: false, reason: 'No invoice numbers found in body — needs human review' };
   }
 
-  const payor = (r.payor || v.shortName || '').trim();
-  if (!payor) return { ok: false, reason: 'Payor not identified — needs human review' };
+  // Payor QA: if the extractor produced a junk/fragment payor (e.g. a marketing
+  // subject tail like "... is on the way - get paid instantly"), try to recover a
+  // known payor from the text; otherwise reject so it goes to review, not a file.
+  let payor = (r.payor || '').trim();
+  if (!payor || looksLikePayorJunk_(payor)) {
+    const known = bestPayorFromText_(text);
+    payor = known || ((v.shortName && !looksLikePayorJunk_(v.shortName)) ? v.shortName : '');
+  }
+  if (!payor) return { ok: false, reason: 'Payor not identified - needs human review' };
 
   const sn = shortName_(payor, v.shortName);
-  if (!sn) {
-    return { ok: false, reason: 'Payor short name could not be resolved (avoid bad filename) — needs human review' };
+  if (!sn || looksLikePayorJunk_(sn)) {
+    return { ok: false, reason: 'Payor short name could not be resolved (avoid bad filename) - needs human review' };
   }
   return {
     ok: true,
@@ -576,6 +592,12 @@ function extractRamp_(subject, body) {
     // Subject "Payment received: RI-x from Y" — Y is clean here (no marketing tail)
     m = subject.match(/Payment received:\s*((?:RI|CN)-\d+)\s+from\s+(.+)$/i);
     if (m) { if (!invoices.length) invoices = [m[1].toUpperCase()]; payor = m[2].trim(); }
+  }
+
+  // Subject "Payment from X is on the way / will be deposited" - capture X, drop the tail.
+  if (!payor) {
+    m = subject.match(/Payment from\s+(.+?)\s+(?:is on the way|will be deposited|is delayed|sent you)/i);
+    if (m) payor = m[1].trim();
   }
 
   // Amount: prefer the labeled "Payment amount" field; never the marketing "1.0% fee" line.
@@ -683,15 +705,23 @@ function extractFromAttachment_(msg, v, att) {
   }
   if (!amount) return { ok: false, reason: 'Amount not found in attachment — needs human review' };
 
-  // Payor: the rule's short_name is the primary hint; document fields refine it.
-  let payor = v.shortName || '';
+  // Payor - extraction-QA ladder (reject junk, then recover):
+  //  1) a labeled "Payer/Payor Name" field, but ONLY if it isn't a table-header
+  //     label like "Supplier Payee Name" (that exact bug produced bad filenames);
+  //  2) otherwise, a known payor found anywhere in the document text (recovers
+  //     Gilead, whose header layout defeats the labeled-field capture);
+  //  3) otherwise the rule's short_name hint, if it's a real name.
+  // If none yield a real payor, flag for review rather than write a bad file.
+  let payor = '';
   m = text.match(/(?:Payer|Payor)\s*Name[:\s]+([^\r\n]+)/i) || text.match(/From Payer\s*[\r\n:]+\s*([^\r\n]+)/i);
-  if (m && m[1].trim()) payor = m[1].trim();
-  if (!payor) return { ok: false, reason: 'Payor not identified — needs human review' };
+  if (m && m[1].trim() && !looksLikePayorJunk_(m[1])) payor = m[1].trim();
+  if (!payor) { const known = bestPayorFromText_(text) || bestPayorFromText_(subjBody); if (known) payor = known; }
+  if (!payor && v.shortName && !looksLikePayorJunk_(v.shortName)) payor = v.shortName;
+  if (!payor) return { ok: false, reason: 'Payor not identified (only field labels found) - needs human review' };
 
   const snA = shortName_(payor, v.shortName);
-  if (!snA) {
-    return { ok: false, reason: 'Payor short name could not be resolved (avoid bad filename) — needs human review' };
+  if (!snA || looksLikePayorJunk_(snA)) {
+    return { ok: false, reason: 'Payor short name could not be resolved (avoid bad filename) - needs human review' };
   }
   return {
     ok: true,
@@ -831,6 +861,63 @@ const SHORT_NAMES = [
   [/amgen/i, 'Amgen'],
   [/incyte/i, 'Incyte'],
 ];
+
+/**
+ * Extraction-QA helper: is this "payor" actually a table-header label, a document
+ * field name, a notification subject fragment, or a rule id — i.e. never a real
+ * payor? Used to reject bad captures (the "Supplier Payee Name" class of bug).
+ */
+function looksLikePayorJunk_(name) {
+  const n = (name || '').trim().toLowerCase();
+  if (!n || n.length < 2) return true;
+  const labels = [
+    'supplier', 'payee name', 'supplier payee name', 'bank name', 'bank number',
+    'branch number', 'bank bic code', 'bank account', 'payment reference number',
+    'payment date', 'payment currency', 'payment amount', 'remittance details',
+    'remittance message', 'remittance advice', 'payment remittance advice',
+    'invoice number', 'gross amount', 'amount paid', 'total amount', 'payer name',
+    'payor name', 'from payer', 'description', 'purchase order', 'page'
+  ];
+  if (labels.indexOf(n) !== -1) return true;
+  // Unambiguous label substrings (no real payor contains these).
+  if (/(payee name|supplier payee|remittance advice|payment reference|bank bic|branch number)/.test(n)) return true;
+  // Notification subject fragments that leaked in as a payor.
+  if (/(is on the way|get paid instantly|will be deposited|deposited today|sent you a payment|has sent you|payment arriving|on its way)/.test(n)) return true;
+  // Rule-id-looking tokens ("extract_from_body", "bill-arriving", ...).
+  if (/[_-]/.test(n) && /^[a-z0-9_ -]+$/.test(n) && /(extract|from_pdf|from_body|attachment|skip|flag|arriving|received|body)/.test(n)) return true;
+  return false;
+}
+
+/**
+ * Extraction-QA helper: scan arbitrary document/subject text for a KNOWN payor
+ * (from SHORT_NAMES) and return its canonical short name. This is the recovery
+ * step that fixes payors whose position in the document defeats field capture
+ * (e.g. Gilead's two-column header). Returns null if no known payor is present.
+ */
+function bestPayorFromText_(text) {
+  const t = text || '';
+  for (let i = 0; i < SHORT_NAMES.length; i++) {
+    if (SHORT_NAMES[i][0].test(t)) return SHORT_NAMES[i][1];
+  }
+  return null;
+}
+
+/**
+ * Extraction-QA gate: the final data-quality checkpoint before anything is written.
+ * Rejects a result whose payor is a label/fragment, whose amount is missing or out
+ * of sane bounds, or (for body emails) that has no invoice numbers. A rejection
+ * sends the email to Review — it never writes a bad file or log row.
+ */
+function validateExtraction_(ext, allowNoInvoices) {
+  if (!ext || !ext.ok) return { ok: false, reason: (ext && ext.reason) || 'extraction failed' };
+  if (looksLikePayorJunk_(ext.shortName) || looksLikePayorJunk_(ext.payor)) {
+    return { ok: false, reason: 'Payor looks like a field label/fragment ("' + (ext.shortName || ext.payor) + '") - needs review' };
+  }
+  if (ext.amount == null || !(ext.amount > 0)) return { ok: false, reason: 'Amount missing or invalid - needs review' };
+  if (ext.amount < CONFIG.AMOUNT_MIN || ext.amount > CONFIG.AMOUNT_MAX) return { ok: false, reason: 'Amount outside sane bounds - needs review' };
+  if (!allowNoInvoices && (!ext.invoices || !ext.invoices.length)) return { ok: false, reason: 'No invoice numbers found - needs review' };
+  return { ok: true };
+}
 
 function shortName_(payor, ruleHint) {
   const p = (payor || '').trim();
