@@ -1,7 +1,38 @@
 {
-  "version": "1.0.9",
+  "version": "1.0.10",
   "updated": "2026-06-24",
   "rules": [
+    {
+      "id": "skip-overdue-invoices",
+      "description": "Overdue-invoice/dunning notice - not a payment",
+      "match": {
+        "subject_contains": [
+          "Overdue Invoices"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "skip-legal-notices",
+      "description": "Legal/bankruptcy notices (Chapter 11 plan, reorganization) - not a remittance",
+      "match": {
+        "subject_contains": [
+          "Chapter 11 Plan",
+          "Plan of Reorganization"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "skip-marketing-newsletter",
+      "description": "Marketing newsletter - not a remittance",
+      "match": {
+        "subject_contains": [
+          "hiring paradox"
+        ]
+      },
+      "action": "skip"
+    },
     {
       "id": "ariba-skip",
       "description": "Ariba portal remittance notifications - skip, NO label",
