@@ -28,8 +28,6 @@
     font-weight:700; font-size:14px; letter-spacing:.02em; box-shadow:inset 0 0 0 2px rgba(255,255,255,.25), inset 0 0 0 3px rgba(0,0,0,.12); }
   .brand-text h1 { font-family:var(--serif); font-size:19px; margin:0; font-weight:700; letter-spacing:.01em; color:var(--ink); }
   .brand-text .sub { font-size:11.5px; color:var(--muted); margin-top:1px; letter-spacing:.02em; text-transform:uppercase; }
-  .who { margin-left:auto; text-align:right; font-size:11.5px; color:var(--muted); line-height:1.35; }
-  .who b { color:var(--slate); font-weight:600; }
   nav { max-width:1160px; margin:0 auto; padding:12px 24px 0; display:flex; gap:3px; }
   nav button { background:none; border:none; padding:9px 16px 12px; cursor:pointer; font-size:13px;
     color:var(--muted); border-bottom:2.5px solid transparent; font-weight:600; letter-spacing:.01em; }
@@ -147,7 +145,6 @@
         <h1>Remittance Agent</h1>
         <div class="sub">Treasury &middot; Daily Cash Receipts</div>
       </div>
-      <div class="who" id="who">&nbsp;</div>
     </div>
     <nav>
       <button class="active" data-page="review" onclick="showPage('review')">Review</button>
@@ -249,7 +246,7 @@
   }
   function flash(m){ var f=document.getElementById('flash'); f.textContent=m; f.classList.add('show'); setTimeout(function(){f.classList.remove('show');},3300); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
-  function setWho(email){ var w=document.getElementById('who'); if(w&&email) w.innerHTML='Signed in as<br><b>'+esc(email)+'</b>'; }
+  function setWho(email){ /* header no longer shows a personal email; identity lives in Settings > Connection */ }
   function fmtAmt(a,cur){ if(a===''||a==null) return ''; var s='$'+esc(String(a)); if(cur&&cur!=='USD') s+=' '+esc(cur); return s; }
 
   // ==================== REVIEW ====================
@@ -532,7 +529,6 @@
 
   // Header name on load (public wrapper — no trailing underscore).
   window.addEventListener('load', function(){
-    try { google.script.run.withSuccessHandler(setWho).getSignedInEmail(); } catch(e){}
     // Review is the default tab; load it.
     loadReview();
   });
