@@ -373,7 +373,7 @@
         +'<div class="sub-cell">Reprocesses this email &amp; writes the correctly-named file. \u201Crule\u201D remembers it for next time.</div>'
         +'</div>';
       h+='<tr><td>'+payorCell+'</td><td class="num">'+amt+'</td>'
-        +'<td style="max-width:300px"><div class="sub-cell" style="color:var(--slate)">'+esc(it.subject)+'</div><div style="margin-top:3px">'+links+'</div></td>'
+        +'<td style="max-width:300px"><div class="sub-cell" style="color:var(--slate)">'+esc(it.subject)+'</div><div style="margin-top:3px">'+links+(it.attachment?(' <span class="badge '+(it.attachment==="PDF"?"b-blue":"b-gray")+'" style="font-size:10px;margin-left:6px">'+esc(it.attachment)+'</span>'):'')+'</div></td>'
         +'<td>'+statusBadge_(it.status)+'</td>'
         +'<td>'+resolve+'</td></tr>';
     });
