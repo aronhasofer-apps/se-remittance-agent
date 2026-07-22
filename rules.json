@@ -1,7 +1,17 @@
 {
-  "version": "1.0.11",
+  "version": "1.0.12",
   "updated": "2026-06-24",
   "rules": [
+    {
+      "id": "skip-arriving-prenotice",
+      "description": "BILL 'sent you a payment arriving' pre-notification - no invoice number, unusable; the 'will be deposited today' email carries the invoice",
+      "match": {
+        "subject_contains": [
+          "sent you a payment arriving"
+        ]
+      },
+      "action": "skip"
+    },
     {
       "id": "skip-overdue-invoices",
       "description": "Overdue-invoice/dunning notice - not a payment",
@@ -247,6 +257,18 @@
       "short_name": "Gilead Sciences"
     },
     {
+      "id": "bill-payment-misc",
+      "description": "Misc payment notifications (sent you a payment of $X; X paid you USD Y) - extract via BILL body extractor",
+      "match": {
+        "subject_contains": [
+          "sent you a payment of",
+          "paid you",
+          "should have arrived"
+        ]
+      },
+      "action": "extract_body"
+    },
+    {
       "id": "remittance-advice-attachment",
       "description": "Generic Remittance Advice with PDF - save attachment",
       "match": {
@@ -292,8 +314,7 @@
           "Notice of new scheduled payment"
         ]
       },
-      "action": "skip",
-      "short_name": "extract_from_body"
+      "action": "skip"
     },
     {
       "id": "bill-arriving",
@@ -307,8 +328,7 @@
           "Sent a payment of"
         ]
       },
-      "action": "extract_body",
-      "short_name": "extract_from_body"
+      "action": "extract_body"
     },
     {
       "id": "merck-body",
@@ -329,10 +349,12 @@
         "subject_contains": [
           "has sent you a",
           "Coupa"
+        ],
+        "from_contains": [
+          "coupahost.com"
         ]
       },
-      "action": "extract_body",
-      "short_name": "extract_from_body"
+      "action": "extract_body"
     },
     {
       "id": "neurocrine-body",
