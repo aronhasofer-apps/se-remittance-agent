@@ -1080,7 +1080,11 @@ function reviewApproveRow(payload) {
 function reevaluateBacklog() {
   const START = Date.now();
   const TIME_BUDGET_MS = 240000; // ~4 min, safely under the 6-min limit; persistent failures fail fast
-  const rules = loadRules_();
+  const rulesFull = loadRules_();
+  // Use the canonical shared rules only — ignore per-payor LOCAL overrides here, since a
+  // user-approved payor rule must not defeat the authoritative skip/extract classification.
+  const rules = { list: (rulesFull.list || []).filter(function (r) { return !/^local/.test(r.id || ''); }),
+                  version: rulesFull.version, source: rulesFull.source };
   const staging = getStagingFolder_(); // the live folder
   const log = getLog_();
   const msgs = log.messages;
