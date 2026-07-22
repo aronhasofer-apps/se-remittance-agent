@@ -714,13 +714,23 @@ function extractFromAttachment_(msg, v, att) {
   const subjBody = (msg.getSubject() || '') + '\n' + safePlainBody_(msg);
   const full = text + '\n' + subjBody;
 
-  // Amount: prefer labeled totals; fall back to the largest currency figure.
+  // Amount extraction, in priority order:
+  //  1) An explicit "amount paid to vendor / total amount paid" total. BMS/E.R. Squibb
+  //     print this with NO currency symbol and with the label far from the figure, so a
+  //     generic first-$ grab would wrongly pick the first line-item amount.
+  //  2) Other labeled totals (Payment/Net/Total ...).
+  //  3) The largest currency-marked figure; or, if the doc prints bare amounts (BMS), the
+  //     largest 2-decimal figure in the document.
   let amount = null, note = '';
-  let m = text.match(/(?:Payment|Net|Total)\s*(?:amount|total|value|paid)?\s*[:\s]\s*[£$€]?\s*([\d,]+\.\d{2})/i);
+  let m = text.match(/(?:Total\s+)?Amount\s+Paid(?:\s+to\s+Vendor)?[:\s]*[£$€]?\s*([\d,]+\.\d{2})/i);
+  if (!m) m = text.match(/(?:Payment|Net|Total)\s*(?:amount|total|value|paid)?\s*[:\s]\s*[£$€]?\s*([\d,]+\.\d{2})/i);
   if (m) amount = toNum_(m[1]);
   if (!amount) {
-    const all = (text.match(/[£$€]\s*([\d,]+\.\d{2})/g) || [])
+    let all = (text.match(/[£$€]\s*([\d,]+\.\d{2})/g) || [])
       .map(function (x) { return toNum_(x.replace(/[£$€\s]/g, '')); });
+    if (!all.length) {
+      all = (text.match(/\b[\d,]{1,12}\.\d{2}\b/g) || []).map(function (x) { return toNum_(x); });
+    }
     if (all.length) {
       amount = Math.max.apply(null, all);
       note = 'Amount taken as largest figure in document — verify';
@@ -974,10 +984,10 @@ function findInvoices_(text) {
   // Canonical SE format: RI-/CN- + EXACTLY 10 digits. Taking exactly 10 (with no trailing
   // boundary requirement) is precisely what lets us stop cleanly at a glued date in Coupa
   // tables (RI-000015304328/05/2026 -> RI-0000153043) while still matching clean invoices.
-  const re = /(?:RI|CN)-\d{10}/gi;
+  const re = /\b(RI|CN)-?(\d{10})/gi;
   let m;
   while ((m = re.exec(norm)) !== null) {
-    const inv = m[0].toUpperCase();
+    const inv = (m[1] + '-' + m[2]).toUpperCase();  // normalize: RI0000150836 -> RI-0000150836
     if (!seen[inv]) { seen[inv] = true; out.push(inv); }
   }
   // Fallback for non-10-digit variants (older/edge formats): require a real boundary after
