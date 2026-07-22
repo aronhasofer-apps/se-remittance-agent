@@ -25,7 +25,7 @@ const LIVE_FOLDER_ID = '1sx3PiXDdxu3jRKcvJR-f4sZi2Bn8q44P';
 function doGet() {
   return HtmlService.createTemplateFromFile('App')
     .evaluate()
-    .setTitle('SE Remittance Agent')
+    .setTitle('Remit Fetcher')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -808,11 +808,11 @@ function sendDailyDigest() {
   const backlog = (review.backlog && review.backlog.unread >= 0) ? review.backlog.unread : null;
 
   const subject = (needs.length || qaRows.length)
-    ? 'Remittance Agent — ' + (needs.length + qaRows.length) + ' item(s) need attention'
-    : 'Remittance Agent — all clear';
+    ? 'Remit Fetcher — ' + (needs.length + qaRows.length) + ' item(s) need attention'
+    : 'Remit Fetcher — all clear';
 
   const html = buildDigestHtml_(dateStr, needs, qaRows, handledCount, backlog, appUrl);
-  MailApp.sendEmail({ to: recipients, subject: subject, htmlBody: html, name: 'SE Remittance Agent' });
+  MailApp.sendEmail({ to: recipients, subject: subject, htmlBody: html, name: 'Remit Fetcher' });
   p.setProperty('DIGEST_LAST_SENT', new Date().toISOString());
 }
 
@@ -823,7 +823,7 @@ function buildDigestHtml_(dateStr, needs, qaRows, handledCount, backlog, appUrl)
   let h = '';
   h += '<div style="font-family:Georgia,serif;max-width:640px;margin:0 auto;color:'+ink+'">';
   h += '<div style="border-bottom:3px solid '+gold+';padding-bottom:12px;margin-bottom:20px">';
-  h += '<div style="font-size:20px;font-weight:700;color:'+ink+'">SE Remittance Agent</div>';
+  h += '<div style="font-size:20px;font-weight:700;color:'+ink+'">Remit Fetcher</div>';
   h += '<div style="font-size:12px;color:'+muted+';text-transform:uppercase;letter-spacing:1px">Treasury · Daily Cash Receipts · '+esc(dateStr)+'</div>';
   h += '</div>';
 
@@ -876,9 +876,9 @@ function buildDigestHtml_(dateStr, needs, qaRows, handledCount, backlog, appUrl)
 
   // CTA
   h += '<div style="margin:24px 0 8px">';
-  h += '<a href="'+esc(appUrl)+'" style="background:'+brand+';color:#fff;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:11px 22px;border-radius:6px;display:inline-block">Open the Remittance Agent</a>';
+  h += '<a href="'+esc(appUrl)+'" style="background:'+brand+';color:#fff;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:11px 22px;border-radius:6px;display:inline-block">Open Remit Fetcher</a>';
   h += '</div>';
-  h += '<p style="font-family:Arial,sans-serif;font-size:11px;color:'+muted+';margin-top:20px">This is an automated daily summary from the SE Remittance Agent.</p>';
+  h += '<p style="font-family:Arial,sans-serif;font-size:11px;color:'+muted+';margin-top:20px">This is an automated daily summary from Remit Fetcher.</p>';
   h += '</div>';
   return h;
 }
