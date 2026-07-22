@@ -1102,7 +1102,12 @@ function reevaluateBacklog() {
     const r = data[i]; const rowNum = i + 2;
     const outcome = String(r[9] || '').toUpperCase();
     const payorRaw = String(r[8] || '').trim();
-    const isStuck = (outcome === 'FLAGGED') || (payorRaw === '' && outcome !== 'SKIPPED' && outcome !== 'ALREADY PROCESSED');
+    // Match what Review shows as "needs attention": a blank OR placeholder/rule-id payor
+    // (e.g. "extract_from_body" from the legacy marker-poisoning) is unresolved, even if
+    // the old outcome reads "Nothing — marker already on thread". Only a terminal-success
+    // outcome takes a row out of the re-evaluation set.
+    const terminalOK = (outcome === 'SKIPPED' || outcome === 'SAVED' || outcome === 'GENERATED');
+    const isStuck = !terminalOK && (outcome === 'FLAGGED' || !payorRaw || looksLikePayorJunk_(payorRaw));
     if (!isStuck) continue;
     if (Date.now() - START > TIME_BUDGET_MS) { out.remaining++; continue; }
     const id = r[11]; if (!id) continue;
