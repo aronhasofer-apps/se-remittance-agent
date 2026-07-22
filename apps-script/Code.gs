@@ -512,10 +512,17 @@ function extractFromBody_(msg, v) {
   const subject = msg.getSubject() || '';
   let body = '';
   try { body = msg.getPlainBody() || ''; } catch (e) {}
-  if (!body || body.length < 40) {
-    try { body = stripHtml_(msg.getBody() || ''); } catch (e) {}
+  {
+    let _h = ''; try { _h = stripHtml_(msg.getBody() || ''); } catch (e) {}
+    // If the plain body is missing or thinner than the HTML text, use the HTML text
+    // (it usually carries the full invoice table that the plain part omits).
+    if (!body || body.length < 40 || (_h && _h.length > body.length + 40)) body = _h || body;
   }
-  const text = subject + '\n' + body;
+  let htmlText = '';
+  try { htmlText = stripHtml_(msg.getBody() || ''); } catch (e) {}
+  // Some BILL notifications put the amount in the plain-text part but the invoice
+  // TABLE only in the HTML part — so scan both for amounts and invoice numbers.
+  const text = subject + '\n' + body + '\n' + htmlText;
   const ruleId = v.ruleObj ? v.ruleObj.id : '';
 
   let r = null;
@@ -860,6 +867,7 @@ function resolveFilename_(savedSheet, base, invoices) {
 // ====================== EXTRACTION HELPERS ======================
 
 const SHORT_NAMES = [
+  [/\bsyngenta\b/i, 'Syngenta'],
   [/glaxosmithkline|(^|\W)gsk(\W|$)/i, 'GSK'],
   [/bristol[- ]?myers|(^|\W)bms(\W|$)/i, 'BMS'],
   [/mrl san francisco|merck sharp|merck research|(^|\W)merck(\W|$)/i, 'Merck'],
