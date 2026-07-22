@@ -337,6 +337,7 @@ function reviewData() {
         fileUrl: r[17] || '',
         gmailUrl: r[12] || '',
         method: methodLabel_(r[6], r[5]),
+        attachment: (String(r[5]).toLowerCase() === 'yes' ? 'PDF' : 'No attachment'),
         outcome: outcome,
         // Plain-language status for the badge — never the raw verdict.
         status: statusLabel_(outcome, payor),
@@ -1077,7 +1078,8 @@ function reviewApproveRow(payload) {
 //  re-running continues where it left off (resolved rows are skipped next time).
 // ============================================================
 function reevaluateBacklog() {
-  const MAX = 25;
+  const START = Date.now();
+  const TIME_BUDGET_MS = 240000; // ~4 min, safely under the 6-min limit; persistent failures fail fast
   const rules = loadRules_();
   const staging = getStagingFolder_(); // the live folder
   const log = getLog_();
@@ -1098,10 +1100,11 @@ function reevaluateBacklog() {
     const payorRaw = String(r[8] || '').trim();
     const isStuck = (outcome === 'FLAGGED') || (payorRaw === '' && outcome !== 'SKIPPED' && outcome !== 'ALREADY PROCESSED');
     if (!isStuck) continue;
-    if (out.scanned >= MAX) { out.remaining++; continue; }
+    if (Date.now() - START > TIME_BUDGET_MS) { out.remaining++; continue; }
     const id = r[11]; if (!id) continue;
     out.scanned++;
 
+    try {
     let msg; try { msg = GmailApp.getMessageById(id); } catch (e) { out.notFound++; continue; }
     if (!msg) { out.notFound++; continue; }
 
@@ -1151,6 +1154,14 @@ function reevaluateBacklog() {
     msgs.getRange(rowNum, 18).setValue(file.getUrl());
     log.saved.appendRow([fmtDate_(new Date()), resolved.filename, money_(ext.amount), ext.currency, (ext.invoices || []).join(', '), ext.shortName, msg.getSubject(), id, file.getUrl()]);
     out.nowSaved++;
+    } catch (rowErr) { try { msgs.getRange(rowNum, 11).setValue('re-eval error: ' + rowErr); } catch (e2) {} out.stillFlagged++; }
   }
+
+  // Log this pass as a run so the "last run" window advances and stale HANDLED items age out to the Run Log.
+  try {
+    log.runs.appendRow([fmtDate_(new Date()), out.scanned, out.nowSaved, '', '', 're-evaluation',
+      out.stillFlagged ? (out.stillFlagged + ' still need review') : '',
+      'Backlog re-evaluation: ' + out.nowSkipped + ' skipped, ' + out.nowSaved + ' saved, ' + out.alreadyInFolder + ' already on file']);
+  } catch (e) {}
   return out;
 }
