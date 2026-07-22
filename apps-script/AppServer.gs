@@ -304,6 +304,14 @@ function reviewData() {
   const handled = [];          // saved, generated, or skipped by a known rule
   const counts = { saved:0, generated:0, skipped:0, flagged:0, needsName:0 };
 
+  // Determine the last run's start time up front so "handled" can be limited to just
+  // the most recent run (Review is a working queue; older handled items live in Run Log).
+  let lastRunStart = 0;
+  try {
+    const runsSheet = log.runs; const lrr = runsSheet.getLastRow();
+    if (lrr >= 2) { const v = runsSheet.getRange(lrr, 1).getValue(); if (v instanceof Date) lastRunStart = v.getTime(); }
+  } catch (e) {}
+
   if (last >= 2) {
     const startRow = Math.max(2, last - 199);
     const rng = msgs.getRange(startRow, 1, last - startRow + 1, 18).getValues();
@@ -340,11 +348,16 @@ function reviewData() {
         if (item.needsName) counts.needsName++;
         needsAttention.push(item);
       } else {
-        handled.push(item);
-        if (outcome === 'SAVED') counts.saved++;
-        else if (outcome === 'GENERATED') counts.generated++;
-        else if (outcome === 'SKIPPED' || outcome === 'ALREADY PROCESSED') counts.skipped++;
-        else counts.flagged++;
+        // Only surface handled items from the most recent run; older ones are in Run Log.
+        const loggedAtMs = (r[0] instanceof Date) ? r[0].getTime() : 0;
+        const fromLastRun = lastRunStart === 0 || loggedAtMs >= (lastRunStart - 60000); // 1-min grace
+        if (fromLastRun) {
+          handled.push(item);
+          if (outcome === 'SAVED') counts.saved++;
+          else if (outcome === 'GENERATED') counts.generated++;
+          else if (outcome === 'SKIPPED' || outcome === 'ALREADY PROCESSED') counts.skipped++;
+          else counts.flagged++;
+        }
       }
     }
   }
@@ -670,4 +683,191 @@ function bumpVersion_(v) {
   while (parts.length < 3) parts.push(0);
   parts[2] += 1;
   return parts.join('.');
+}
+// ============================================================
+//  NOTIFICATIONS — daily digest email + scheduled QA scan,
+//  plus badge counts for the nav tabs. All recipients and the
+//  digest send-hour live in Script Properties (set via Settings).
+// ============================================================
+
+/**
+ * Counts for the nav-tab badges: how many Review items need attention,
+ * and whether QA currently has any flagged files. Cheap enough to call on load.
+ */
+function getBadges() {
+  let reviewCount = 0, qaHasIssues = false;
+  try {
+    const rd = reviewData();
+    reviewCount = (rd.needsAttention || []).length;
+  } catch (e) {}
+  try {
+    // Use the cached last-scan result if present, else a light scan.
+    const cached = PropertiesService.getScriptProperties().getProperty('QA_LAST_ISSUES');
+    if (cached != null) qaHasIssues = Number(cached) > 0;
+    else { const qa = qaScan(); qaHasIssues = (qa.rows || []).length > 0;
+      PropertiesService.getScriptProperties().setProperty('QA_LAST_ISSUES', String((qa.rows||[]).length)); }
+  } catch (e) {}
+  return { review: reviewCount, qa: qaHasIssues };
+}
+
+/** Notification settings (recipients + digest hour) for the Settings page. */
+function getNotifySettings() {
+  const p = PropertiesService.getScriptProperties();
+  return {
+    recipients: p.getProperty('NOTIFY_RECIPIENTS') || '',
+    digestHour: Number(p.getProperty('NOTIFY_DIGEST_HOUR') || '8'), // 24h, approximate
+    qaScanEveryHours: Number(p.getProperty('QA_SCAN_HOURS') || '4'),
+  };
+}
+
+/** Save notification settings and (re)install the schedule triggers to match. */
+function saveNotifySettings(payload) {
+  const p = PropertiesService.getScriptProperties();
+  const out = { ok: true, changed: [] };
+  if (typeof payload.recipients === 'string') {
+    // Light validation: comma/space separated emails.
+    const cleaned = payload.recipients.split(/[,;\s]+/).filter(function (x) { return x.indexOf('@') > 0; }).join(', ');
+    p.setProperty('NOTIFY_RECIPIENTS', cleaned); out.changed.push('recipients');
+  }
+  const hr = Number(payload.digestHour);
+  if (isFinite(hr) && hr >= 0 && hr <= 23) { p.setProperty('NOTIFY_DIGEST_HOUR', String(hr)); out.changed.push('digestHour'); }
+  const qh = Number(payload.qaScanEveryHours);
+  if (isFinite(qh) && [1,2,3,4,6,8,12].indexOf(qh) !== -1) { p.setProperty('QA_SCAN_HOURS', String(qh)); out.changed.push('qaScanHours'); }
+  installNotificationTriggers();
+  return out;
+}
+
+/** (Re)install the daily-digest and QA-scan time triggers to match settings. */
+function installNotificationTriggers() {
+  const ns = getNotifySettings();
+  // Remove any existing notification triggers first (leave the main runRemittanceScan trigger alone).
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    const fn = t.getHandlerFunction();
+    if (fn === 'sendDailyDigest' || fn === 'scheduledQaScan') ScriptApp.deleteTrigger(t);
+  });
+  // Daily digest at the chosen (approximate) hour.
+  ScriptApp.newTrigger('sendDailyDigest').timeBased().atHour(ns.digestHour).everyDays(1).create();
+  // QA scan every few hours.
+  ScriptApp.newTrigger('scheduledQaScan').timeBased().everyHours(ns.qaScanEveryHours).create();
+  return { ok: true };
+}
+
+/** Scheduled QA scan: refresh the cached issue count so badges + digest are current. */
+function scheduledQaScan() {
+  try {
+    const qa = qaScan();
+    PropertiesService.getScriptProperties().setProperty('QA_LAST_ISSUES', String((qa.rows || []).length));
+    PropertiesService.getScriptProperties().setProperty('QA_LAST_SCAN_AT', new Date().toISOString());
+  } catch (e) {}
+}
+
+/**
+ * The daily digest. Sends every day (even all-clear) to the configured recipients,
+ * combining Review items needing attention + QA issues, with a link to the app.
+ */
+function sendDailyDigest() {
+  const p = PropertiesService.getScriptProperties();
+  const recipients = p.getProperty('NOTIFY_RECIPIENTS') || '';
+  if (!recipients.trim()) return; // no recipients set → nothing sends
+
+  let review = { needsAttention: [], handled: [], counts: {}, backlog: { unread: -1 } };
+  try { review = reviewData(); } catch (e) {}
+  let qaRows = [];
+  try { const qa = qaScan(); qaRows = qa.rows || []; p.setProperty('QA_LAST_ISSUES', String(qaRows.length)); } catch (e) {}
+
+  const appUrl = ScriptApp.getService().getUrl();
+  const tz = Session.getScriptTimeZone();
+  const dateStr = Utilities.formatDate(new Date(), tz, 'EEEE, MMMM d, yyyy');
+  const needs = review.needsAttention || [];
+  const handledCount = (review.counts.saved || 0) + (review.counts.generated || 0);
+  const backlog = (review.backlog && review.backlog.unread >= 0) ? review.backlog.unread : null;
+
+  const subject = (needs.length || qaRows.length)
+    ? 'Remittance Agent — ' + (needs.length + qaRows.length) + ' item(s) need attention'
+    : 'Remittance Agent — all clear';
+
+  const html = buildDigestHtml_(dateStr, needs, qaRows, handledCount, backlog, appUrl);
+  MailApp.sendEmail({ to: recipients, subject: subject, htmlBody: html, name: 'SE Remittance Agent' });
+  p.setProperty('DIGEST_LAST_SENT', new Date().toISOString());
+}
+
+/** Build the digest HTML — structured, Treasury-styled, with an app link. */
+function buildDigestHtml_(dateStr, needs, qaRows, handledCount, backlog, appUrl) {
+  const brand = '#12508a', gold = '#9a7b1f', ink = '#0f1e2e', muted = '#6b7a89', line = '#dde4ec', red = '#b3261e', green = '#1a7f4b';
+  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+  let h = '';
+  h += '<div style="font-family:Georgia,serif;max-width:640px;margin:0 auto;color:'+ink+'">';
+  h += '<div style="border-bottom:3px solid '+gold+';padding-bottom:12px;margin-bottom:20px">';
+  h += '<div style="font-size:20px;font-weight:700;color:'+ink+'">SE Remittance Agent</div>';
+  h += '<div style="font-size:12px;color:'+muted+';text-transform:uppercase;letter-spacing:1px">Treasury · Daily Cash Receipts · '+esc(dateStr)+'</div>';
+  h += '</div>';
+
+  // Summary line
+  h += '<p style="font-family:Arial,sans-serif;font-size:14px;color:'+ink+'">';
+  if (!needs.length && !qaRows.length) {
+    h += '<b style="color:'+green+'">All clear.</b> The agent ran and there is nothing outstanding.';
+  } else {
+    h += '<b style="color:'+red+'">'+(needs.length+qaRows.length)+' item(s) need attention.</b>';
+  }
+  h += '</p>';
+
+  // Stats row
+  h += '<table style="font-family:Arial,sans-serif;font-size:13px;width:100%;border-collapse:collapse;margin:14px 0">';
+  h += '<tr>';
+  h += statCell_(handledCount, 'Handled today', ink, line);
+  h += statCell_(needs.length, 'Need attention', needs.length?red:ink, line);
+  h += statCell_(qaRows.length, 'QA issues', qaRows.length?red:ink, line);
+  h += statCell_(backlog==null?'—':backlog, 'Unread in inbox', ink, line);
+  h += '</tr></table>';
+
+  // Needs attention list
+  if (needs.length) {
+    h += sectionTitle_('Needs your attention', red);
+    h += '<table style="font-family:Arial,sans-serif;font-size:13px;width:100%;border-collapse:collapse">';
+    needs.slice(0, 25).forEach(function (it) {
+      const payor = it.payor ? esc(it.payor) : '<i style="color:'+muted+'">payor not read</i>';
+      const amt = it.amount != null ? ('$' + esc(String(it.amount)) + (it.currency && it.currency !== 'USD' ? (' ' + esc(it.currency)) : '')) : '—';
+      h += '<tr style="border-bottom:1px solid '+line+'">';
+      h += '<td style="padding:7px 8px 7px 0">'+payor+'</td>';
+      h += '<td style="padding:7px 8px;font-family:monospace;border-left:2px solid '+gold+'">'+amt+'</td>';
+      h += '<td style="padding:7px 0;color:'+muted+'">'+esc((it.subject||'').slice(0,60))+'</td>';
+      h += '</tr>';
+    });
+    h += '</table>';
+  }
+
+  // QA issues list
+  if (qaRows.length) {
+    h += sectionTitle_('QA cleanup issues', red);
+    h += '<table style="font-family:Arial,sans-serif;font-size:13px;width:100%;border-collapse:collapse">';
+    qaRows.slice(0, 25).forEach(function (r) {
+      h += '<tr style="border-bottom:1px solid '+line+'">';
+      h += '<td style="padding:7px 8px 7px 0;font-family:monospace;font-size:12px">'+esc(r.name)+'</td>';
+      h += '<td style="padding:7px 0;color:'+muted+'">'+esc((r.issues||[]).join(', '))+(r.live?' <b style="color:'+red+'">[LIVE]</b>':'')+'</td>';
+      h += '</tr>';
+    });
+    h += '</table>';
+  }
+
+  // CTA
+  h += '<div style="margin:24px 0 8px">';
+  h += '<a href="'+esc(appUrl)+'" style="background:'+brand+';color:#fff;font-family:Arial,sans-serif;font-size:14px;font-weight:bold;text-decoration:none;padding:11px 22px;border-radius:6px;display:inline-block">Open the Remittance Agent</a>';
+  h += '</div>';
+  h += '<p style="font-family:Arial,sans-serif;font-size:11px;color:'+muted+';margin-top:20px">This is an automated daily summary from the SE Remittance Agent.</p>';
+  h += '</div>';
+  return h;
+}
+function statCell_(n, label, color, line) {
+  return '<td style="width:25%;text-align:center;padding:10px;border:1px solid '+line+';border-radius:6px">'
+    + '<div style="font-size:22px;font-weight:700;font-family:monospace;color:'+color+'">'+n+'</div>'
+    + '<div style="font-size:10px;color:#6b7a89;text-transform:uppercase;letter-spacing:.5px">'+label+'</div></td>';
+}
+function sectionTitle_(t, color) {
+  return '<div style="font-family:Arial,sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+color+';margin:20px 0 8px;padding-bottom:4px;border-bottom:2px solid '+color+'">'+t+'</div>';
+}
+
+/** Manual "send me a test digest now" for the Settings page. */
+function sendTestDigest() {
+  try { sendDailyDigest(); return { ok: true }; }
+  catch (e) { return { ok: false, error: String(e) }; }
 }
