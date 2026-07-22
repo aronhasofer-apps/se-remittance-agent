@@ -1,5 +1,5 @@
 {
-  "version": "1.0.8",
+  "version": "1.0.9",
   "updated": "2026-06-24",
   "rules": [
     {
@@ -202,6 +202,17 @@
       },
       "action": "save_attachment",
       "short_name": "Terray Therapeutics"
+    },
+    {
+      "id": "gilead-sender",
+      "description": "Gilead Sciences remittance - matched by SENDER (subject is the generic 'Remittance Advice'), save PDF attachment",
+      "match": {
+        "from_contains": [
+          "gilead.com"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Gilead Sciences"
     },
     {
       "id": "remittance-advice-attachment",
