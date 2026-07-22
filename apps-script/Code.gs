@@ -571,6 +571,13 @@ function extractBill_(subject, body) {
     const amt = firstAmount_(body);
     if (amt) return { payor: m[1], amount: amt, invoices: findInvoices_(text) };
   }
+  // "X sent you a payment of $366.48" (BILL variant that includes "you")
+  m = subject.match(/^(.+?)\s+sent you a payment of\s+\$?([\d,]+\.\d{2})/i)
+     || body.match(/([^\r\n]{2,90}?)\s+sent you a payment of\s+\$?([\d,]+\.\d{2})/i);
+  if (m) return { payor: m[1], amount: toNum_(m[2]), invoices: findInvoices_(text) };
+  // "X paid you USD 10,500.00" / "X paid you $10,500.00" (e.g. "Payment should have arrived: X paid you ...")
+  m = text.match(/([A-Z][A-Za-z0-9&.,'\-\u2019 ]+?)\s+paid you\s+(?:([A-Z]{3})\s+)?\$?([\d,]+\.\d{2})/);
+  if (m) return { payor: m[1], amount: toNum_(m[3]), currency: (m[2] || 'USD'), invoices: findInvoices_(text) };
   return null;
 }
 
