@@ -552,7 +552,8 @@ function getAuditLog(limit) {
   const runs = [];
   const runsSheet = log.runs;
   let rlast = runsSheet.getLastRow();
-  if (rlast >= 2) {
+try {
+    if (rlast >= 2) {
     const n = Math.min(limit || 40, rlast - 1);
     const rng = runsSheet.getRange(rlast - n + 1, 1, n, 8).getValues();
     for (let i = rng.length - 1; i >= 0; i--) {
@@ -561,12 +562,14 @@ function getAuditLog(limit) {
         rulesVersion: r[4], rulesSource: r[5], error: r[6] || '', outcomes: r[7] || '' });
     }
   }
+  } catch (e) {}
 
   // ---- Messages-derived: saved / skipped / flagged (each row keeps a link home) ----
   const saved = [], skipped = [], flagged = [];
   const m = log.messages;
   const lr = m.getLastRow();
-  if (lr >= 2) {
+try {
+    if (lr >= 2) {
     const count = Math.min(400, lr - 1);
     const mr = m.getRange(lr - count + 1, 1, count, 18).getValues();
     for (let i = mr.length - 1; i >= 0; i--) {
@@ -600,6 +603,7 @@ function getAuditLog(limit) {
       }
     }
   }
+  } catch (e) {}
 
   // ---- QA actions ----
   const qa = [];
