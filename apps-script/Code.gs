@@ -53,7 +53,8 @@ const CONFIG = {
   RULES_URL: 'https://raw.githubusercontent.com/aronhasofer-apps/se-remittance-agent/main/rules.json',
   MARKER_LABEL: 'Remittance Agent',
   LOG_FILE_NAME: 'SE Remittance Agent — Log',
-  STAGING_FOLDER_NAME: 'Remittance Agent — Staging',
+  STAGING_FOLDER_NAME: 'Remittance Agent — Staging', // legacy; no longer used for writing
+  LIVE_FOLDER_ID: '1sx3PiXDdxu3jRKcvJR-f4sZi2Bn8q44P', // remits not applied (Finance > AR > Daily Cash Receipts)
 
   // 'shadow' = write files, touch nothing in Gmail (desktop app unaffected)
   // 'live'   = also apply the marker label after processing
@@ -425,6 +426,22 @@ function processMessage_(msg, v, staging, log) {
     return { status: 'FLAGGED', note: 'File write failed: ' + e, shortName: ext.shortName };
   }
 
+  // RIGOROUS VALIDATION: verify the file truly landed in the live folder, is a real
+  // non-empty PDF, and is named as intended — BEFORE we log it as saved. This is what
+  // guarantees the log reflects reality (fixes the phantom-save gap).
+  const vres = validateSavedFile_(file.getId(), resolved.filename);
+  if (!vres.ok) {
+    // Try to clean up a bad partial write so it can't masquerade as good later.
+    try { file.setTrashed(true); } catch (e) {}
+    return {
+      status: 'ERROR',
+      note: 'Save could not be verified — ' + vres.reason + '. Not logged as saved; needs a re-run.',
+      shortName: ext.shortName,
+      amountText: money_(ext.amount), currency: ext.currency, invoices: ext.invoices,
+      filename: resolved.filename,
+    };
+  }
+
   log.saved.appendRow([
     fmtDate_(new Date()), resolved.filename, money_(ext.amount), ext.currency,
     ext.invoices.join(', '), ext.payor, msg.getSubject(), msg.getId(), file.getUrl(),
@@ -432,13 +449,14 @@ function processMessage_(msg, v, staging, log) {
 
   return {
     status: ext.sourceBlob ? 'SAVED' : 'GENERATED',
-    note: ext.note || '',
+    note: (ext.note || '') + ' (verified in live folder)',
     shortName: ext.shortName,
     amountText: money_(ext.amount),
     currency: ext.currency,
     invoices: ext.invoices,
     filename: resolved.filename,
     fileUrl: file.getUrl(),
+    verified: true,
   };
 }
 
@@ -974,12 +992,45 @@ function ensureSheet_(ss, name, headers) {
 }
 
 function getStagingFolder_() {
-  const props = PropertiesService.getScriptProperties();
-  const id = props.getProperty('STAGING_FOLDER_ID');
-  if (id) { try { return DriveApp.getFolderById(id); } catch (e) {} }
-  const folder = DriveApp.createFolder(CONFIG.STAGING_FOLDER_NAME);
-  props.setProperty('STAGING_FOLDER_ID', folder.getId());
-  return folder;
+  // The agent now writes DIRECTLY to the live "remits not applied" folder.
+  // (Staging was removed — files are reference docs for payments already in the
+  // accounting system, and every write is verified by validateSavedFile_ below.)
+  return DriveApp.getFolderById(CONFIG.LIVE_FOLDER_ID);
+}
+
+/**
+ * Rigorous post-write validation. Confirms the file we just wrote actually exists,
+ * is in the live destination folder, is a non-empty PDF, and carries the intended
+ * name. Returns { ok, checks, reason }. Only if this passes do we log "saved".
+ */
+function validateSavedFile_(fileId, intendedName) {
+  const checks = { exists: false, inLiveFolder: false, nonEmpty: false, isPdf: false, nameMatches: false };
+  try {
+    const f = DriveApp.getFileById(fileId); // (1) read back by ID — proves it exists
+    checks.exists = true;
+
+    // (2) parent must be the live destination folder
+    const parents = f.getParents();
+    while (parents.hasNext()) {
+      if (parents.next().getId() === CONFIG.LIVE_FOLDER_ID) { checks.inLiveFolder = true; break; }
+    }
+    // (3) non-empty
+    checks.nonEmpty = f.getSize() > 0;
+    // (4) is a PDF (by mime or extension)
+    const mime = f.getMimeType() || '';
+    checks.isPdf = /pdf/i.test(mime) || /\.pdf$/i.test(f.getName() || '');
+    // (5) filename matches what we intended to write
+    checks.nameMatches = f.getName() === intendedName;
+  } catch (e) {
+    return { ok: false, checks: checks, reason: 'read-back failed: ' + e };
+  }
+  const ok = checks.exists && checks.inLiveFolder && checks.nonEmpty && checks.isPdf && checks.nameMatches;
+  let reason = '';
+  if (!ok) {
+    const failed = Object.keys(checks).filter(function (k) { return !checks[k]; });
+    reason = 'validation failed: ' + failed.join(', ');
+  }
+  return { ok: ok, checks: checks, reason: reason };
 }
 
 /** Message IDs already logged (column 12) — keeps every run append-only. */
