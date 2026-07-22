@@ -304,8 +304,17 @@ function classify_(msg, rules) {
   };
 
   let hit = null;
+  // Pass 1 — SKIP rules are authoritative and always win (an invoice-receipt, Ariba
+  // notice, etc. must skip regardless of any payor rule a user approved).
   for (let i = 0; i < rules.list.length; i++) {
-    if (ruleMatches_(rules.list[i], s, snippet, f)) { hit = rules.list[i]; break; }
+    const r = rules.list[i];
+    if (String(r.action || '').toLowerCase() === 'skip' && ruleMatches_(r, s, snippet, f)) { hit = r; break; }
+  }
+  // Pass 2 — otherwise the first matching rule (local overrides are checked first).
+  if (!hit) {
+    for (let i = 0; i < rules.list.length; i++) {
+      if (ruleMatches_(rules.list[i], s, snippet, f)) { hit = rules.list[i]; break; }
+    }
   }
 
   let action = hit ? String(hit.action || 'flag').toLowerCase() : 'flag';
