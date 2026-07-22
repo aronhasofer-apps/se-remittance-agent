@@ -335,18 +335,27 @@
   // couldn't be read. Approving the name fixes the file AND saves a shared rule.
   function attentionSection(items){
     if(!items.length) return '<div class="sec-head attention">Needs your attention <span class="count">(0)</span></div><div class="allclear">&#10003; Nothing needs your attention \u2014 the agent handled everything.</div>';
-    var h='<div class="sec-head attention">Needs your attention <span class="count">('+items.length+')</span></div><div class="card"><table><thead><tr><th>Payor</th><th class="num">Amount</th><th>Subject</th><th>Status</th><th style="width:250px">Resolve</th></tr></thead><tbody>';
+    var h='<div class="sec-head attention">Needs your attention <span class="count">('+items.length+')</span></div><div class="card"><table><thead><tr><th>Payor</th><th class="num">Amount</th><th>Subject</th><th>Status</th><th style="width:300px">Resolve</th></tr></thead><tbody>';
     items.forEach(function(it,i){
       var amt=it.amount!=null?('<span class="amount">'+fmtAmt(it.amount,it.currency)+'</span>'):'<span class="amount muted-amt" title="Amount could not be read">not read</span>';
       var payorCell = it.payor ? ('<span style="font-weight:600">'+esc(it.payor)+'</span>') : '<span class="sub-cell" style="font-style:italic">Payor not read</span>';
       var links=(it.gmailUrl?('<a href="'+esc(it.gmailUrl)+'" target="_blank" class="link">open email</a>'):'');
-      var resolve;
-      if(it.needsName){
-        resolve='<div style="display:flex;gap:5px;align-items:center"><input class="inp" id="nm-'+i+'" placeholder="Payor short name" style="width:130px;font-family:inherit"> <button class="btn primary sm" onclick="approveName('+i+')">Approve</button></div>'
-          +'<div class="sub-cell" style="margin-top:3px">Saves a shared rule so it\u2019s automatic next time.</div>';
-      } else {
-        resolve='<span class="badge b-amber">flagged for review</span>';
-      }
+      var sug=esc(it.suggestedName||it.payor||'');
+      var resolve='<div style="display:flex;flex-direction:column;gap:4px">'
+        +'<input class="inp" id="nm-'+i+'" value="'+sug+'" placeholder="Payor short name" style="width:230px;font-family:inherit">'
+        +'<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">'
+        +'<select class="inp" id="act-'+i+'" style="font-family:inherit;font-size:12px;padding:4px 6px">'
+        +'<option value="auto">Auto</option>'
+        +'<option value="save_attachment">Save PDF attachment</option>'
+        +'<option value="extract_body">Generate from body</option>'
+        +'<option value="skip">Skip</option>'
+        +'<option value="flag">Flag</option>'
+        +'</select>'
+        +'<label class="sub-cell" style="display:flex;align-items:center;gap:3px" title="Remember this payor for future emails"><input type="checkbox" id="rule-'+i+'" checked> rule</label>'
+        +'<button class="btn primary sm" onclick="approveName('+i+')">Approve</button>'
+        +'</div>'
+        +'<div class="sub-cell">Reprocesses this email &amp; writes the correctly-named file. \u201Crule\u201D remembers it for next time.</div>'
+        +'</div>';
       h+='<tr><td>'+payorCell+'</td><td class="num">'+amt+'</td>'
         +'<td style="max-width:300px"><div class="sub-cell" style="color:var(--slate)">'+esc(it.subject)+'</div><div style="margin-top:3px">'+links+'</div></td>'
         +'<td>'+statusBadge_(it.status)+'</td>'
@@ -380,17 +389,24 @@
   function approveName(i){
     var it=REVIEW.needsAttention[i];
     var name=document.getElementById('nm-'+i).value.trim();
-    if(!name){ flash('Enter a payor short name first.'); return; }
-    var kw=firstKw(it) || (it.subject||'').split(/\s+/)[0];
-    // Ask which action once (default extract_body); keep it light.
-    var action='extract_body';
+    var action=document.getElementById('act-'+i).value;
+    if(!name && action!=='skip' && action!=='flag'){ flash('Enter or confirm a payor short name first.'); return; }
+    var makeRule=document.getElementById('rule-'+i).checked;
+    // Prefer the sender as the rule signal (stronger than subject); fall back to a subject keyword.
+    var ruleSignal='subject', ruleValue='';
+    if(makeRule){
+      var dm=(it.from||'').match(/@([a-z0-9.-]+)/i);
+      if(dm && !/gmail|outlook|yahoo/.test(dm[1])){ ruleSignal='from'; ruleValue=dm[1]; }
+      else { ruleValue=firstKw(it); }
+    }
+    var btn=event&&event.target?event.target:null; if(btn){btn.disabled=true;btn.textContent='Working\u2026';}
     google.script.run
       .withSuccessHandler(function(res){
-        if(res.ok){ flash(res.shared ? ('Payor "'+name+'" saved to shared rules \u2014 automatic next run.') : ('Payor "'+name+'" saved locally. '+(res.note||''))); loadReview(); }
-        else flash('Could not save: '+res.error);
+        if(res && res.ok){ flash(res.note || ('Done: '+(res.filename||''))); loadReview(); }
+        else { flash('Could not complete: '+((res&&(res.error||res.note))||'unknown error')); if(btn){btn.disabled=false;btn.textContent='Approve';} }
       })
-      .withFailureHandler(function(err){ flash('Save failed: '+(err.message||err)); })
-      .approvePayorToGitHub({ subjectKeyword:kw, shortName:name, action:action });
+      .withFailureHandler(function(err){ flash('Failed: '+(err.message||err)); if(btn){btn.disabled=false;btn.textContent='Approve';} })
+      .reviewApproveRow({ messageId:it.id, shortName:name, action:(action==='auto'?'':action), makeRule:makeRule, ruleSignal:ruleSignal, ruleValue:ruleValue });
   }
   function firstKw(it){ if(it.payor) return it.payor.split(/[,\s]+/)[0]; var w=(it.subject||'').split(/\s+/).filter(function(x){return x.length>3;}); return w.length?w[0]:''; }
 
