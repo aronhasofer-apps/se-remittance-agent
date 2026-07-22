@@ -908,22 +908,47 @@ function sendTestDigest() {
 // ============================================================
 
 /** Best-guess short name for an unresolved row, from subject + sender. */
+function isSelfName_(name) {
+  const n = String(name || '').toLowerCase().replace(/[^a-z]/g, '');
+  return n.indexOf('scienceexchange') !== -1 || n === 'science' || n === 'exchange' || n === 'sciexchange' || n === 'sciex';
+}
+
 function suggestName_(subject, from, rawPayor) {
-  const hay = String(subject || '') + ' ' + String(from || '');
+  const subj = String(subject || '');
+  const fromRaw = String(from || '');
+
+  // 1) A KNOWN payor anywhere in subject+from wins — but never our own name.
+  const hay = subj + ' ' + fromRaw;
   try {
     for (let i = 0; i < SHORT_NAMES.length; i++) {
-      if (SHORT_NAMES[i][0].test(hay)) return SHORT_NAMES[i][1];
+      if (SHORT_NAMES[i][0].test(hay)) { const sn = SHORT_NAMES[i][1]; if (!isSelfName_(sn)) return sn; }
     }
   } catch (e) {}
-  // Company-looking phrase at the start of a BILL/Ramp-style subject.
-  let m = String(subject || '').match(/^([A-Z][A-Za-z0-9&.,'’\- ]+?)\s+(?:sent you|is on the way|received your|has sent you|will be deposited|sent a payment|initiated a payment)/);
-  if (m) { try { return shortName_(m[1].trim(), ''); } catch (e) { return m[1].trim(); } }
-  // Sender-domain hint (skip infrastructure-y subdomains).
-  const dm = String(from || '').match(/@([a-z0-9.-]+)/i);
+
+  // 2) Strip reply/forward + notification prefixes so the company name is at the front.
+  let s = subj
+    .replace(/^\s*(re|fw|fwd)\s*:\s*/gi, '').replace(/^\s*(re|fw|fwd)\s*:\s*/gi, '').replace(/^\s*(re|fw|fwd)\s*:\s*/gi, '')
+    .replace(/^\s*\[[^\]]*\]\s*/g, '')
+    .replace(/^\s*(your\s+)?payment\s+from\s+/i, '')
+    .replace(/^\s*payment\s+notification\s+from\s+/i, '')
+    .replace(/^\s*notice of (new )?/i, '');
+
+  // 3) Company-looking phrase up to a known action verb.
+  let m = s.match(/^([A-Z][A-Za-z0-9&.,'’\- ]+?)\s+(?:sent you|is on the way|received your|has sent you|has initiated|will be deposited|sent a payment|initiated a payment|is attempting|will deposit)/i);
+  if (!m) m = subj.match(/from\s+([A-Z][A-Za-z0-9&.,'’\- ]+?)\s*$/); // "... from Y"
+  if (m && m[1]) {
+    let g = ''; try { g = shortName_(m[1].trim(), ''); } catch (e) { g = m[1].trim(); }
+    if (g && !looksLikePayorJunk_(g) && !isSelfName_(g)) return g;
+  }
+
+  // 4) Sender-domain hint — skip our own domain + infra subdomains.
+  const dm = fromRaw.toLowerCase().match(/@([a-z0-9.-]+)/);
   if (dm) {
     const dom = dm[1].split('.')[0];
-    if (dom && dom.length > 2 && !/mail|smtp|no-?reply|noreply|erp|notif|payment|remit|account|finance|service|do-?not/.test(dom)) {
-      return dom.charAt(0).toUpperCase() + dom.slice(1);
+    if (dom && dom.length > 2 &&
+        !/mail|smtp|no-?reply|noreply|erp|notif|payment|remit|account|finance|service|do-?not|science|exchange|sciex/.test(dom)) {
+      const cand = dom.charAt(0).toUpperCase() + dom.slice(1);
+      if (!looksLikePayorJunk_(cand) && !isSelfName_(cand)) return cand;
     }
   }
   return '';
@@ -1037,4 +1062,95 @@ function reviewApproveRow(payload) {
   } catch (e) {
     return { ok: false, error: String(e) };
   }
+}
+
+// ============================================================
+//  BACKLOG RE-EVALUATION
+//  Reprocesses every currently-stuck row (FLAGGED, or missing a payor) against the
+//  CURRENT rules + engine, and UPDATES that row in place:
+//    - now classified skip   -> mark SKIPPED (drops out of the Review queue; no file)
+//    - now extracts cleanly   -> write the file + mark SAVED/GENERATED
+//    - a same-named file already exists in the live folder (e.g. the desktop tool
+//      already saved it) -> mark ALREADY PROCESSED, write nothing (no duplicate)
+//    - still fails            -> stays flagged, with the new reason noted
+//  Processes up to MAX rows per call so it stays within Apps Script's time limit;
+//  re-running continues where it left off (resolved rows are skipped next time).
+// ============================================================
+function reevaluateBacklog() {
+  const MAX = 25;
+  const rules = loadRules_();
+  const staging = getStagingFolder_(); // the live folder
+  const log = getLog_();
+  const msgs = log.messages;
+  const last = msgs.getLastRow();
+  const out = { scanned: 0, nowSkipped: 0, nowSaved: 0, stillFlagged: 0, notFound: 0, alreadyInFolder: 0, remaining: 0 };
+  if (last < 2) return out;
+
+  // Snapshot existing live-folder filenames ONCE so we never duplicate a file the
+  // desktop tool (or a prior run) already wrote.
+  const existing = {};
+  try { const it = staging.getFiles(); while (it.hasNext()) existing[it.next().getName().toLowerCase()] = true; } catch (e) {}
+
+  const data = msgs.getRange(2, 1, last - 1, 18).getValues();
+  for (let i = 0; i < data.length; i++) {
+    const r = data[i]; const rowNum = i + 2;
+    const outcome = String(r[9] || '').toUpperCase();
+    const payorRaw = String(r[8] || '').trim();
+    const isStuck = (outcome === 'FLAGGED') || (payorRaw === '' && outcome !== 'SKIPPED' && outcome !== 'ALREADY PROCESSED');
+    if (!isStuck) continue;
+    if (out.scanned >= MAX) { out.remaining++; continue; }
+    const id = r[11]; if (!id) continue;
+    out.scanned++;
+
+    let msg; try { msg = GmailApp.getMessageById(id); } catch (e) { out.notFound++; continue; }
+    if (!msg) { out.notFound++; continue; }
+
+    const v = classify_(msg, rules);
+    if (v.action === 'skip') {
+      msgs.getRange(rowNum, 10).setValue('SKIPPED');
+      msgs.getRange(rowNum, 11).setValue('re-evaluated -> skip (' + v.ruleName + ')');
+      out.nowSkipped++; continue;
+    }
+
+    const ext = runExtraction_(msg, v);
+    const vq = (ext && ext.ok) ? validateExtraction_(ext, !!ext.sourceBlob) : { ok: false, reason: (ext && ext.reason) || 'extraction failed' };
+    if (!vq.ok) { msgs.getRange(rowNum, 11).setValue('re-evaluated (still needs review): ' + vq.reason); out.stillFlagged++; continue; }
+
+    const base = buildFilename_(ext, ext.fileExt || 'pdf');
+    if (existing[base.toLowerCase()]) {
+      msgs.getRange(rowNum, 9).setValue(ext.shortName);
+      msgs.getRange(rowNum, 10).setValue('ALREADY PROCESSED');
+      msgs.getRange(rowNum, 11).setValue('re-evaluated: file already in live folder');
+      msgs.getRange(rowNum, 14).setValue(money_(ext.amount));
+      out.alreadyInFolder++; continue;
+    }
+    const resolved = resolveFilename_(log.saved, base, ext.invoices || []);
+    if (resolved.duplicate) {
+      msgs.getRange(rowNum, 10).setValue('ALREADY PROCESSED');
+      msgs.getRange(rowNum, 11).setValue('re-evaluated: duplicate in log');
+      out.alreadyInFolder++; continue;
+    }
+
+    let file;
+    try {
+      file = ext.sourceBlob
+        ? staging.createFile(ext.sourceBlob.copyBlob()).setName(resolved.filename)
+        : generateBodyPdf_(msg, ext, resolved.filename, staging);
+    } catch (e) { msgs.getRange(rowNum, 11).setValue('re-evaluated write failed: ' + e); out.stillFlagged++; continue; }
+
+    const val = validateSavedFile_(file.getId(), resolved.filename);
+    if (!val.ok) { try { file.setTrashed(true); } catch (e) {} msgs.getRange(rowNum, 11).setValue('re-evaluated validation failed: ' + val.reason); out.stillFlagged++; continue; }
+
+    existing[resolved.filename.toLowerCase()] = true;
+    msgs.getRange(rowNum, 9).setValue(ext.shortName);
+    msgs.getRange(rowNum, 10).setValue(ext.sourceBlob ? 'SAVED' : 'GENERATED');
+    msgs.getRange(rowNum, 14).setValue(money_(ext.amount));
+    msgs.getRange(rowNum, 15).setValue(ext.currency);
+    msgs.getRange(rowNum, 16).setValue((ext.invoices || []).join(', '));
+    msgs.getRange(rowNum, 17).setValue(resolved.filename);
+    msgs.getRange(rowNum, 18).setValue(file.getUrl());
+    log.saved.appendRow([fmtDate_(new Date()), resolved.filename, money_(ext.amount), ext.currency, (ext.invoices || []).join(', '), ext.shortName, msg.getSubject(), id, file.getUrl()]);
+    out.nowSaved++;
+  }
+  return out;
 }
