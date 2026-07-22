@@ -251,7 +251,15 @@
 
   // ==================== REVIEW ====================
   var REVIEW = null;
-  var ACTION_LABELS = { save_attachment:'Save attachment', extract_body:'Extract from body', skip:'Skip', flag:'Flag for review' };
+
+  function relTime(epoch, now){
+    if(!epoch) return '';
+    var s=Math.max(0,Math.round((now-epoch)/1000));
+    if(s<60) return 'just now';
+    var m=Math.round(s/60); if(m<60) return m+' min ago';
+    var h=Math.round(m/60); if(h<24) return h+' hr'+(h>1?'s':'')+' ago';
+    var d=Math.round(h/24); return d+' day'+(d>1?'s':'')+' ago';
+  }
 
   function loadReview(){
     var b=document.getElementById('revLoad'); if(b){b.disabled=true;b.textContent='Loading\u2026';}
@@ -273,73 +281,93 @@
       .withFailureHandler(function(err){ flash('Run failed: '+(err.message||err)); if(b){b.disabled=false;b.textContent='Run agent now';} })
       .reviewRerun();
   }
-  function needsIntervention_(it){ if(it.outcome==='FLAGGED') return true; if(!it.payor||it.payor==='') return true; return false; }
   function renderReview(res){
-    setWho(res.user);
+    // Header status line: last run + relative time + true inbox backlog.
     var m=document.getElementById('revMode');
-    if(m){ var t=res.mode==='live'?'LIVE \u2014 files also labeled in Gmail':'Shadow \u2014 files staged, Gmail untouched'; m.innerHTML=esc(t)+(res.lastRunAt?(' &middot; last run '+esc(res.lastRunAt)):''); }
-    var all=(res.toProcess||[]).concat(res.skipped||[]);
-    var needs=all.filter(needsIntervention_), handled=all.filter(function(x){return !needsIntervention_(x);});
+    if(m){
+      var parts=[];
+      if(res.lastRunAt) parts.push('Last run '+esc(res.lastRunAt)+' ('+relTime(res.lastRunEpoch,res.nowEpoch)+')');
+      if(res.backlog && res.backlog.unread>=0) parts.push('<b>'+res.backlog.unread+'</b> unread in inbox');
+      m.innerHTML=parts.join(' &nbsp;\u00b7&nbsp; ');
+    }
+    var needs=res.needsAttention||[], handled=res.handled||[];
     document.getElementById('rv-attn').textContent=needs.length;
     document.getElementById('rv-saved').textContent=(res.counts.saved||0)+(res.counts.generated||0);
-    document.getElementById('rv-skip').textContent=(res.skipped||[]).length;
-    document.getElementById('rv-total').textContent=all.length;
+    document.getElementById('rv-skip').textContent=res.counts.skipped||0;
+    document.getElementById('rv-total').textContent=needs.length+handled.length;
     document.getElementById('revStats').style.display='flex';
-    if(!all.length){ document.getElementById('review-body').innerHTML='<div class="state"><div class="glyph">&#128235;</div><div class="headline">Nothing logged yet</div><div class="detail">No remittances processed in the current window. Click <b>Run agent now</b> to scan the inbox.</div></div>'; return; }
+
+    if(!needs.length && !handled.length){
+      document.getElementById('review-body').innerHTML='<div class="state"><div class="glyph">&#128235;</div><div class="headline">Nothing logged yet</div><div class="detail">No remittances processed in the current window. Click <b>Run agent now</b> to scan the inbox.</div></div>';
+      return;
+    }
     var h='';
-    if(needs.length) h+='<div class="attention-banner"><b>'+needs.length+'</b> item'+(needs.length>1?'s':'')+' need your attention \u2014 the agent couldn\u2019t handle '+(needs.length>1?'these':'this')+' on its own.</div>';
-    h+=reviewSection('Needs your attention',needs,true);
-    h+=reviewSection('Handled automatically',handled,false);
+    if(needs.length) h+='<div class="attention-banner"><b>'+needs.length+'</b> item'+(needs.length>1?'s':'')+' need your attention \u2014 the agent couldn\u2019t finish '+(needs.length>1?'these':'this')+'.</div>';
+    h+=attentionSection(needs);
+    h+=handledSection(handled);
     document.getElementById('review-body').innerHTML=h;
   }
-  function reviewSection(title,items,isAttention){
-    if(!items.length){
-      if(isAttention) return '<div class="sec-head attention">'+esc(title)+' <span class="count">(0)</span></div><div class="allclear">&#10003; Nothing needs your attention \u2014 the agent handled everything.</div>';
-      return '<div class="sec-head">'+esc(title)+' <span class="count">(0)</span></div><div class="sub-cell" style="padding:0 2px 8px">None.</div>';
-    }
-    var h='<div class="sec-head'+(isAttention?' attention':'')+'">'+esc(title)+' <span class="count">('+items.length+')</span></div>';
-    h+='<div class="card"><table><thead><tr><th>Payor</th><th class="num">Amount</th><th>Method</th><th>Subject</th><th>Invoices</th><th>Action</th></tr></thead><tbody>';
+
+  // NEEDS ATTENTION: clean rows, prominent amount, an inline name field where the payor
+  // couldn't be read. Approving the name fixes the file AND saves a shared rule.
+  function attentionSection(items){
+    if(!items.length) return '<div class="sec-head attention">Needs your attention <span class="count">(0)</span></div><div class="allclear">&#10003; Nothing needs your attention \u2014 the agent handled everything.</div>';
+    var h='<div class="sec-head attention">Needs your attention <span class="count">('+items.length+')</span></div><div class="card"><table><thead><tr><th>Payor</th><th class="num">Amount</th><th>Subject</th><th>Status</th><th style="width:250px">Resolve</th></tr></thead><tbody>';
     items.forEach(function(it,i){
-      var idx=(isAttention?'a':'h')+i;
-      var payor=it.payor?('<span style="font-weight:600">'+esc(it.payor)+'</span>'):'<span class="sub-cell">(unresolved)</span>';
-      var amt=it.amount?('<span class="amount">'+fmtAmt(it.amount,it.currency)+'</span>'):'<span class="amount muted-amt">\u2014</span>';
-      var links=(it.gmailUrl?('<a href="'+esc(it.gmailUrl)+'" target="_blank" class="link">email</a>'):'')+(it.fileUrl?(' &middot; <a href="'+esc(it.fileUrl)+'" target="_blank" class="link">file</a>'):'');
-      h+='<tr><td>'+payor+'<div style="margin-top:2px">'+outcomeBadge_(it.outcome)+'</div></td>'
-        +'<td class="num">'+amt+'</td>'
-        +'<td><span class="badge b-gray">'+esc(it.method)+'</span></td>'
-        +'<td style="max-width:260px"><div class="sub-cell" style="color:var(--slate)">'+esc(it.subject)+'</div><div style="margin-top:3px">'+links+'</div>'+(it.note?('<div class="sub-cell" style="margin-top:2px">'+esc(it.note)+'</div>'):'')+'</td>'
-        +'<td class="mono">'+(it.invoices?esc(it.invoices):'<span class="sub-cell">\u2014</span>')+'</td>'
-        +'<td>'+actionControl_(idx,it)+'</td></tr>';
+      var amt=it.amount!=null?('<span class="amount">'+fmtAmt(it.amount,it.currency)+'</span>'):'<span class="amount muted-amt" title="Amount could not be read">not read</span>';
+      var payorCell = it.payor ? ('<span style="font-weight:600">'+esc(it.payor)+'</span>') : '<span class="sub-cell" style="font-style:italic">Payor not read</span>';
+      var links=(it.gmailUrl?('<a href="'+esc(it.gmailUrl)+'" target="_blank" class="link">open email</a>'):'');
+      var resolve;
+      if(it.needsName){
+        resolve='<div style="display:flex;gap:5px;align-items:center"><input class="inp" id="nm-'+i+'" placeholder="Payor short name" style="width:130px;font-family:inherit"> <button class="btn primary sm" onclick="approveName('+i+')">Approve</button></div>'
+          +'<div class="sub-cell" style="margin-top:3px">Saves a shared rule so it\u2019s automatic next time.</div>';
+      } else {
+        resolve='<span class="badge b-amber">flagged for review</span>';
+      }
+      h+='<tr><td>'+payorCell+'</td><td class="num">'+amt+'</td>'
+        +'<td style="max-width:300px"><div class="sub-cell" style="color:var(--slate)">'+esc(it.subject)+'</div><div style="margin-top:3px">'+links+'</div></td>'
+        +'<td>'+statusBadge_(it.status)+'</td>'
+        +'<td>'+resolve+'</td></tr>';
     });
     h+='</tbody></table></div>'; return h;
   }
-  function outcomeBadge_(o){
-    var map={'SAVED':['b-green','saved'],'GENERATED':['b-green','generated'],'FLAGGED':['b-red','needs review'],'DUPLICATE':['b-amber','duplicate'],'SKIPPED':['b-gray','skipped'],'ALREADY PROCESSED':['b-gray','already done']};
-    var e=map[o]||['b-gray',String(o).toLowerCase()]; return '<span class="badge '+e[0]+'">'+esc(e[1])+'</span>';
+
+  // HANDLED: confirmation ledger — payor, amount (prominent), method, file, invoices. No controls.
+  function handledSection(items){
+    if(!items.length) return '<div class="sec-head">Handled automatically <span class="count">(0)</span></div><div class="sub-cell" style="padding:0 2px 8px">None yet.</div>';
+    var h='<div class="sec-head">Handled automatically <span class="count">('+items.length+')</span></div><div class="card"><table><thead><tr><th>Payor</th><th class="num">Amount</th><th>Method</th><th>Subject</th><th>Invoices</th><th>File</th></tr></thead><tbody>';
+    items.forEach(function(it){
+      var amt=it.amount!=null?('<span class="amount">'+fmtAmt(it.amount,it.currency)+'</span>'):'<span class="amount muted-amt">\u2014</span>';
+      var file=it.fileUrl?('<a href="'+esc(it.fileUrl)+'" target="_blank" class="mono link">open</a>'):'<span class="sub-cell">\u2014</span>';
+      h+='<tr><td><span style="font-weight:600">'+esc(it.payor||'\u2014')+'</span><div style="margin-top:2px">'+statusBadge_(it.status)+'</div></td>'
+        +'<td class="num">'+amt+'</td>'
+        +'<td><span class="badge b-gray">'+esc(it.method)+'</span></td>'
+        +'<td style="max-width:280px"><div class="sub-cell" style="color:var(--slate)">'+esc(it.subject)+'</div></td>'
+        +'<td class="mono">'+(it.invoices?esc(it.invoices):'<span class="sub-cell">\u2014</span>')+'</td>'
+        +'<td>'+file+'</td></tr>';
+    });
+    h+='</tbody></table></div>'; return h;
   }
-  function actionControl_(idx,it){
-    if(!needsIntervention_(it)) return '<span class="sub-cell">\u2014</span>';
-    var opts=['save_attachment','extract_body','skip','flag'];
-    var sel='<select class="inp" style="padding:5px 7px;font-size:12px" onchange="onActionChange(\''+idx+'\',this.value)">';
-    opts.forEach(function(o){ sel+='<option value="'+o+'"'+(o===it.action?' selected':'')+'>'+ACTION_LABELS[o]+'</option>'; });
-    sel+='</select>';
-    return '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:5px">'+sel+'<button class="btn primary sm" onclick="openRuleForm(\''+idx+'\')">Create rule</button></div>';
+
+  function statusBadge_(status){
+    var map={'Saved':'b-green','Skipped':'b-gray','Already done':'b-gray','Duplicate':'b-amber','Needs review':'b-amber','Payor not read':'b-red'};
+    return '<span class="badge '+(map[status]||'b-gray')+'">'+esc(status)+'</span>';
   }
-  function itemByIdx(idx){ var att=idx.charAt(0)==='a'; var i=parseInt(idx.slice(1),10); var all=(REVIEW.toProcess||[]).concat(REVIEW.skipped||[]); var needs=all.filter(needsIntervention_), handled=all.filter(function(x){return !needsIntervention_(x);}); return att?needs[i]:handled[i]; }
-  function onActionChange(idx,val){ var it=itemByIdx(idx); flash('Action for "'+((it.payor||it.subject)||'').slice(0,36)+'" set to '+ACTION_LABELS[val]+'. Create a rule to make it stick.'); }
-  function openRuleForm(idx){
-    var it=itemByIdx(idx);
-    var shortName=prompt('Create a rule for this payor.\n\nShort name for the filename (e.g. GSK, BMS, Merck):', it.payor||'');
-    if(shortName===null) return;
-    var action=prompt('How should this payor always be handled?\n\nType one of:\n  save_attachment\n  extract_body\n  skip\n  flag', it.action||'save_attachment');
-    if(action===null) return; action=action.trim();
-    if(['save_attachment','extract_body','skip','flag'].indexOf(action)===-1){ flash('Rule not created: action must be save_attachment, extract_body, skip, or flag.'); return; }
-    var kw=prompt('Match this rule when the SUBJECT contains (a distinctive word, e.g. the payor name):', firstKw(it));
-    if(kw===null) return;
+
+  function approveName(i){
+    var it=REVIEW.needsAttention[i];
+    var name=document.getElementById('nm-'+i).value.trim();
+    if(!name){ flash('Enter a payor short name first.'); return; }
+    var kw=firstKw(it) || (it.subject||'').split(/\s+/)[0];
+    // Ask which action once (default extract_body); keep it light.
+    var action='extract_body';
     google.script.run
-      .withSuccessHandler(function(res){ if(res.ok) flash('Rule created \u2014 applies on the next run ('+res.count+' local rule(s)).'); else flash('Rule failed: '+res.error); })
-      .withFailureHandler(function(err){ flash('Rule failed: '+(err.message||err)); })
-      .reviewCreateRule({ match:{subject_contains:[kw]}, action:action, short_name:shortName });
+      .withSuccessHandler(function(res){
+        if(res.ok){ flash(res.shared ? ('Payor "'+name+'" saved to shared rules \u2014 automatic next run.') : ('Payor "'+name+'" saved locally. '+(res.note||''))); loadReview(); }
+        else flash('Could not save: '+res.error);
+      })
+      .withFailureHandler(function(err){ flash('Save failed: '+(err.message||err)); })
+      .approvePayorToGitHub({ subjectKeyword:kw, shortName:name, action:action });
   }
   function firstKw(it){ if(it.payor) return it.payor.split(/[,\s]+/)[0]; var w=(it.subject||'').split(/\s+/).filter(function(x){return x.length>3;}); return w.length?w[0]:''; }
 
@@ -458,15 +486,9 @@
   }
   function renderSettings(s){
     setWho(s.user);
-    var modePill=s.mode==='live'?'<span class="pill live">LIVE</span>':'<span class="pill shadow">SHADOW</span>';
     var h='';
-    // Card 1: run behavior
+    // Card 1: run behavior (mode/live removed — the agent only saves files)
     h+='<div class="card"><div class="card-head">How the agent runs</div><div class="card-body">';
-    h+='<div class="set-row"><div class="set-label"><div class="t">Mode '+modePill+'</div><div class="d">Shadow saves files to staging and never touches Gmail. Live also labels processed emails.</div></div>'
-      +'<div class="set-control"><div class="mode-toggle">'
-      +'<button id="mode-shadow" class="'+(s.mode==='shadow'?'on-shadow':'')+'" onclick="setMode(\'shadow\')">Shadow</button>'
-      +'<button id="mode-live" class="'+(s.mode==='live'?'on-live':'')+'" onclick="setMode(\'live\')">Live</button>'
-      +'</div><div class="sub-cell" id="mode-note" style="margin-top:7px"></div></div></div>';
     h+='<div class="set-row"><div class="set-label"><div class="t">Lookback window</div><div class="d">How many days of recent mail each run scans.</div></div>'
       +'<div class="set-control"><input class="inp" id="set-lookback" type="number" min="1" max="60" value="'+esc(String(s.lookbackDays))+'"> <span class="sub-cell">days (default '+esc(String(s.defaults.lookbackDays))+')</span></div></div>';
     h+='<div class="set-row"><div class="set-label"><div class="t">Max per run</div><div class="d">Cap on how many emails one run processes; the rest roll to the next cycle.</div></div>'
@@ -491,26 +513,9 @@
     h+='<div class="kv"><div class="k">Signed in as</div><div class="v">'+esc(s.user)+'</div></div>';
     h+='</div></div>';
     document.getElementById('settings-body').innerHTML=h;
-    pendingMode=s.mode; updateModeNote();
-  }
-  var pendingMode='shadow';
-  function setMode(m){
-    pendingMode=m;
-    document.getElementById('mode-shadow').className=(m==='shadow'?'on-shadow':'');
-    document.getElementById('mode-live').className=(m==='live'?'on-live':'');
-    updateModeNote();
-  }
-  function updateModeNote(){
-    var n=document.getElementById('mode-note'); if(!n) return;
-    if(pendingMode==='live') n.innerHTML='<span style="color:var(--violet)">Live mode will label processed emails in the real inbox. You\u2019ll confirm when you save.</span>';
-    else n.innerHTML='Shadow mode is safe: files are staged, Gmail is left untouched.';
   }
   function saveSettingsUI(){
-    var payload={ mode:pendingMode, lookbackDays:document.getElementById('set-lookback').value, maxPerRun:document.getElementById('set-max').value, confirmLive:false };
-    if(pendingMode==='live'){
-      if(!confirm('Switch to LIVE mode?\n\nThe agent will start labeling processed emails in the real remittance inbox. Files were already being saved either way. Continue?')) return;
-      payload.confirmLive=true;
-    }
+    var payload={ lookbackDays:document.getElementById('set-lookback').value, maxPerRun:document.getElementById('set-max').value };
     google.script.run
       .withSuccessHandler(function(res){ if(res.ok){ flash('Settings saved'+(res.changed&&res.changed.length?(' ('+res.changed.join(', ')+')'):'')+'.'); loadSettings(); } else flash('Not saved: '+res.error); })
       .withFailureHandler(function(err){ flash('Save failed: '+(err.message||err)); })
