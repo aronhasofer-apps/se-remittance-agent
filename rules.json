@@ -1,5 +1,5 @@
 {
-  "version": "1.0.10",
+  "version": "1.0.11",
   "updated": "2026-06-24",
   "rules": [
     {
@@ -39,7 +39,8 @@
       "match": {
         "subject_contains": [
           "Notice of new Remittance Advice",
-          "AribaNetworkAdmin"
+          "AribaNetworkAdmin",
+          "Notice of new scheduled payment"
         ]
       },
       "action": "skip",
@@ -291,7 +292,7 @@
           "Notice of new scheduled payment"
         ]
       },
-      "action": "extract_body",
+      "action": "skip",
       "short_name": "extract_from_body"
     },
     {
