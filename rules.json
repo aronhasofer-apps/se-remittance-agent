@@ -1,5 +1,5 @@
 {
-  "version": "1.0.13",
+  "version": "1.0.14",
   "updated": "2026-06-24",
   "rules": [
     {
@@ -278,6 +278,23 @@
       },
       "action": "save_attachment",
       "short_name": "Syngenta"
+    },
+    {
+      "id": "regeneron-body",
+      "description": "Regeneron 'Payment Remittance Advice' (subject 'Separate Remittance Advice') - data in body/HTML, extract & generate PDF",
+      "match": {
+        "snippet_contains": [
+          "Regeneron Pharmaceuticals"
+        ],
+        "from_contains": [
+          "regeneron.com"
+        ],
+        "subject_contains": [
+          "Separate Remittance Advice"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "Regeneron"
     },
     {
       "id": "remittance-advice-attachment",
