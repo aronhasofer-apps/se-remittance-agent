@@ -1,5 +1,5 @@
 {
-  "version": "1.0.7",
+  "version": "1.0.8",
   "updated": "2026-06-24",
   "rules": [
     {
@@ -157,10 +157,13 @@
     },
     {
       "id": "gilead-attachment",
-      "description": "Gilead Sciences remittance - save PDF attachment",
+      "description": "Gilead Sciences remittance - match on sender (subject is generic \"Remittance Advice\")",
       "match": {
         "subject_contains": [
           "Gilead"
+        ],
+        "from_contains": [
+          "gilead.com"
         ]
       },
       "action": "save_attachment",
