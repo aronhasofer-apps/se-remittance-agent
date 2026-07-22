@@ -581,7 +581,32 @@ function getRunLog(limit) {
       }
     }
   } catch (e) {}
-  return { user: getActiveUser_(), generatedAt: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm'), runs: rows, saved: saved };
+  // Skipped emails feed (from Messages tab where outcome is SKIPPED/ALREADY PROCESSED),
+  // with reason + which rule matched, so the Run Log can show and filter them.
+  let skipped = [];
+  try {
+    const m = log.messages;
+    const lr = m.getLastRow();
+    if (lr >= 2) {
+      const count = Math.min(80, lr - 1);
+      const mr = m.getRange(lr - count + 1, 1, count, 18).getValues();
+      for (let i = mr.length - 1; i >= 0; i--) {
+        const r = mr[i];
+        const outcome = String(r[9] || '').toUpperCase();
+        if (outcome === 'SKIPPED' || outcome === 'ALREADY PROCESSED') {
+          skipped.push({
+            at: fmtCell_(r[0], tz),
+            from: r[3] || '',
+            subject: r[4] || '',
+            reason: r[10] || (outcome === 'ALREADY PROCESSED' ? 'Already processed on a prior run' : 'Matched a skip rule'),
+            rule: r[7] || '',
+            outcome: outcome,
+          });
+        }
+      }
+    }
+  } catch (e) {}
+  return { user: getActiveUser_(), generatedAt: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm'), runs: rows, saved: saved, skipped: skipped };
 }
 
 
