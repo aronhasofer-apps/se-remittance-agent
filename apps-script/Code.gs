@@ -305,7 +305,7 @@ function classify_(msg, rules) {
 
   let hit = null;
   for (let i = 0; i < rules.list.length; i++) {
-    if (ruleMatches_(rules.list[i], s, snippet)) { hit = rules.list[i]; break; }
+    if (ruleMatches_(rules.list[i], s, snippet, f)) { hit = rules.list[i]; break; }
   }
 
   let action = hit ? String(hit.action || 'flag').toLowerCase() : 'flag';
@@ -333,8 +333,17 @@ function classify_(msg, rules) {
   };
 }
 
-function ruleMatches_(rule, subjectLower, snippetFn) {
+function ruleMatches_(rule, subjectLower, snippetFn, fromLower) {
   const m = rule.match || {};
+  // Sender is a primary signal, independent of the subject line. Many payors
+  // (e.g. Gilead's ERPPAYABLES@gilead.com) have a generic subject but an
+  // unmistakable From address — match on that first.
+  const from = m.from_contains || [];
+  if (from.length && fromLower) {
+    for (let k = 0; k < from.length; k++) {
+      if (fromLower.indexOf(String(from[k]).toLowerCase()) !== -1) return true;
+    }
+  }
   const subj = m.subject_contains || [];
   for (let i = 0; i < subj.length; i++) {
     if (subjectLower.indexOf(String(subj[i]).toLowerCase()) !== -1) return true;
