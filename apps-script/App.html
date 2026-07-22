@@ -158,7 +158,7 @@
     <nav>
       <button class="active" data-page="review" onclick="showPage('review')">Review<span id="badge-review"></span></button>
       <button data-page="qa" onclick="showPage('qa')">QA Cleanup<span id="badge-qa"></span></button>
-      <button data-page="log" onclick="showPage('log')">Run Log</button>
+      <button data-page="log" onclick="showPage('log')">Audit Log</button>
       <button data-page="settings" onclick="showPage('settings')">Settings</button>
     </nav>
   </header>
@@ -216,8 +216,8 @@
 
     <!-- ===================== RUN LOG ===================== -->
     <div id="page-log" style="display:none">
-      <h2 class="page-title">Run Log</h2>
-      <div class="page-lede">Every time the agent ran, what it found, and the files it saved.</div>
+      <h2 class="page-title">Audit Log</h2>
+      <div class="page-lede">Every action the agent took &mdash; and every one it couldn&rsquo;t &mdash; with the reason and a link back to the original email or file. Sections open one at a time; filter within each.</div>
       <div class="toolbar">
         <button class="btn primary" id="logLoad" onclick="loadLog()">Refresh</button>
         <span class="spacer"></span>
@@ -486,74 +486,102 @@
       .withFailureHandler(function(e){ qaBusy(false); flash('Rename failed: '+(e.message||e)); }).qaRename(idx.map(function(i){return {id:SCAN.rows[i].id,newName:SCAN.rows[i].proposedName};}));
   }
 
-  // ==================== RUN LOG ====================
-  var RUNLOG=null;
+  // ==================== AUDIT LOG ====================
+  var AUDIT=null;
   function loadLog(){
     var b=document.getElementById('logLoad'); if(b){b.disabled=true;b.textContent='Loading\u2026';}
-    document.getElementById('log-body').innerHTML='<div class="state"><div class="spinner"></div><div class="headline" style="margin-top:12px">Loading run history</div></div>';
+    document.getElementById('log-body').innerHTML='<div class="state"><div class="spinner"></div><div class="headline" style="margin-top:12px">Loading audit history</div></div>';
     google.script.run
-      .withSuccessHandler(function(res){ RUNLOG=res; renderLog(res); if(b){b.disabled=false;b.textContent='Refresh';} })
+      .withSuccessHandler(function(res){ AUDIT=res; renderAudit(res); if(b){b.disabled=false;b.textContent='Refresh';} })
       .withFailureHandler(function(err){ document.getElementById('log-body').innerHTML='<div class="state"><div class="glyph">&#9888;</div><div class="headline">Couldn\u2019t load</div><div class="detail">'+esc(err.message||err)+'</div></div>'; if(b){b.disabled=false;b.textContent='Refresh';} })
-      .getRunLog(40);
+      .getAuditLog(40);
   }
-  function renderLog(res){
+  function emailLink(u){ return u?('<a href="'+esc(u)+'" target="_blank" class="link">open email</a>'):'<span class="sub-cell">\u2014</span>'; }
+  function accSection(key,title,count,inner){
+    return '<div style="border:1px solid #e5e5e5;border-radius:10px;margin-bottom:10px;overflow:hidden">'
+      +'<div onclick="accToggle(\''+key+'\')" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:12px 16px;background:#fafafa;font-weight:600;user-select:none">'
+      +'<span id="chev-'+key+'" style="display:inline-block;width:12px;color:#999">\u25B8</span>'
+      +'<span>'+title+'</span><span style="color:#999;font-weight:500">('+count+')</span></div>'
+      +'<div class="acc-body" id="acc-'+key+'" style="display:none;padding:12px 16px;overflow-x:auto">'
+      +(count?('<input class="inp" placeholder="Filter this section\u2026" oninput="filterAcc(\''+key+'\',this.value)" style="margin-bottom:10px;width:240px;font-size:12px;padding:5px 9px;font-family:inherit">'):'')
+      +inner+'</div></div>';
+  }
+  function accToggle(key){
+    var body=document.getElementById('acc-'+key); if(!body) return;
+    var isOpen = body.style.display!=='none';
+    var bodies=document.querySelectorAll('.acc-body'); for(var i=0;i<bodies.length;i++) bodies[i].style.display='none';
+    var chevs=document.querySelectorAll('[id^="chev-"]'); for(var j=0;j<chevs.length;j++) chevs[j].textContent='\u25B8';
+    if(!isOpen){ body.style.display=''; var ch=document.getElementById('chev-'+key); if(ch)ch.textContent='\u25BE'; }
+  }
+  function filterAcc(key,q){ q=(q||'').toLowerCase(); var rows=document.querySelectorAll('#acc-'+key+' tbody tr'); for(var i=0;i<rows.length;i++){ rows[i].style.display=rows[i].textContent.toLowerCase().indexOf(q)>=0?'':'none'; } }
+  function renderAudit(res){
     setWho(res.user);
     var meta=document.getElementById('logMeta'); if(meta) meta.textContent='As of '+esc(res.generatedAt);
+    var runs=res.runs||[], saved=res.saved||[], sk=res.skipped||[], fl=res.flagged||[], qa=res.qa||[];
     var h='';
-    var runs=res.runs||[];
-    h+='<div class="card"><div class="card-head">Agent runs</div>';
-    if(!runs.length){ h+='<div class="card-body"><div class="sub-cell">No runs recorded yet.</div></div>'; }
-    else {
-      h+='<table><thead><tr><th>Run at</th><th class="num">Seen</th><th class="num">New</th><th>Rules</th><th>Outcomes</th><th>Status</th></tr></thead><tbody>';
-      runs.forEach(function(r){
-        var status=r.error?('<span class="badge b-red">error</span>'):('<span class="badge b-green">ok</span>');
-        h+='<tr><td class="mono">'+esc(r.at)+'</td><td class="num mono">'+esc(String(r.inWindow||0))+'</td><td class="num mono">'+esc(String(r.newLogged||0))+'</td>'
-          +'<td class="sub-cell">v'+esc(String(r.rulesVersion||'?'))+' &middot; '+esc(String(r.rulesLoaded||0))+'</td>'
-          +'<td class="sub-cell">'+esc(r.outcomes||'')+'</td><td>'+status+(r.error?('<div class="sub-cell" style="color:var(--red);margin-top:2px">'+esc(r.error)+'</div>'):'')+'</td></tr>';
-      });
-      h+='</tbody></table>';
-    }
-    h+='</div>';
-    var saved=res.saved||[];
-    h+='<div class="card"><div class="card-head">Recently saved files</div>';
-    if(!saved.length){ h+='<div class="card-body"><div class="sub-cell">No files saved yet.</div></div>'; }
-    else {
-      h+='<table><thead><tr><th>Saved at</th><th>Payor</th><th class="num">Amount</th><th>File</th><th>Invoices</th></tr></thead><tbody>';
-      saved.forEach(function(s){
-        h+='<tr><td class="mono">'+esc(s.at)+'</td><td style="font-weight:600">'+esc(s.payor||'')+'</td>'
-          +'<td class="num"><span class="amount">'+fmtAmt(s.amount,s.currency)+'</span></td>'
-          +'<td>'+(s.fileUrl?('<a href="'+esc(s.fileUrl)+'" target="_blank" class="mono link">'+esc(s.filename||'file')+'</a>'):('<span class="mono">'+esc(s.filename||'')+'</span>'))+'</td>'
-          +'<td class="mono">'+esc(s.invoices||'')+'</td></tr>';
-      });
-      h+='</tbody></table>';
-    }
-    h+='</div>';
 
-    // Skipped emails — with a live filter box.
-    var sk=res.skipped||[];
-    h+='<div class="card"><div class="card-head">Skipped emails <span class="count" style="font-weight:600;color:var(--muted)">('+sk.length+')</span>'
-      +'<span class="spacer" style="flex:1"></span>'
-      +'<input class="inp" id="skipFilter" placeholder="Filter\u2026" style="font-family:inherit;font-size:12px;padding:5px 9px;width:180px" oninput="filterSkipped()">'
-      +'</div>';
-    if(!sk.length){ h+='<div class="card-body"><div class="sub-cell">No skipped emails recorded.</div></div>'; }
-    else {
-      h+='<table id="skipTable"><thead><tr><th>When</th><th>From</th><th>Subject</th><th>Reason</th></tr></thead><tbody>';
-      sk.forEach(function(s){
-        h+='<tr class="skip-row"><td class="mono" style="font-size:11px">'+esc(s.at)+'</td>'
-          +'<td class="sub-cell">'+esc((s.from||'').slice(0,32))+'</td>'
-          +'<td class="sub-cell" style="color:var(--slate);max-width:320px">'+esc((s.subject||'').slice(0,70))+'</td>'
-          +'<td class="sub-cell">'+esc(s.reason||'')+(s.rule?(' <span class="badge b-gray" style="font-size:10px">'+esc(s.rule)+'</span>'):'')+'</td></tr>';
-      });
-      h+='</tbody></table>';
-    }
-    h+='</div>';
+    var ir='';
+    if(!runs.length){ ir='<div class="sub-cell">No runs recorded yet.</div>'; }
+    else { ir='<table><thead><tr><th>Run at</th><th class="num">Seen</th><th class="num">New</th><th>Rules</th><th>Source</th><th>Outcomes</th><th>Status</th></tr></thead><tbody>';
+      runs.forEach(function(r){ var st=r.error?'<span class="badge b-red">error</span>':'<span class="badge b-green">ok</span>';
+        ir+='<tr><td class="mono" style="font-size:11px">'+esc(r.at)+'</td><td class="num mono">'+esc(String(r.inWindow||0))+'</td><td class="num mono">'+esc(String(r.newLogged||0))+'</td>'
+          +'<td class="sub-cell">v'+esc(String(r.rulesVersion||'?'))+' &middot; '+esc(String(r.rulesLoaded||0))+' rules</td>'
+          +'<td class="sub-cell">'+esc(String(r.rulesSource||''))+'</td>'
+          +'<td class="sub-cell">'+esc(r.outcomes||'')+'</td>'
+          +'<td>'+st+(r.error?('<div class="sub-cell" style="color:var(--red);margin-top:2px">'+esc(r.error)+'</div>'):'')+'</td></tr>'; });
+      ir+='</tbody></table>'; }
+    h+=accSection('runs','Agent runs',runs.length,ir);
+
+    var isv='';
+    if(!saved.length){ isv='<div class="sub-cell">No files saved yet.</div>'; }
+    else { isv='<table><thead><tr><th>When</th><th>Payor</th><th class="num">Amount</th><th>Method</th><th>Doc</th><th>Invoices</th><th>File</th><th>Source</th></tr></thead><tbody>';
+      saved.forEach(function(s){ isv+='<tr><td class="mono" style="font-size:11px">'+esc(s.at)+'</td><td style="font-weight:600">'+esc(s.payor||'')+'</td>'
+          +'<td class="num"><span class="amount">'+fmtAmt(s.amount,s.currency)+'</span></td>'
+          +'<td class="sub-cell">'+esc(s.method||'')+'</td>'
+          +'<td><span class="badge '+(s.docType==='PDF'?'b-blue':'b-gray')+'" style="font-size:10px">'+esc(s.docType||'')+'</span></td>'
+          +'<td class="mono" style="font-size:11px;max-width:200px">'+esc(s.invoices||'')+'</td>'
+          +'<td>'+(s.fileUrl?('<a href="'+esc(s.fileUrl)+'" target="_blank" class="mono link" style="font-size:11px">'+esc(s.filename||'file')+'</a>'):('<span class="mono" style="font-size:11px">'+esc(s.filename||'')+'</span>'))+'</td>'
+          +'<td>'+emailLink(s.emailUrl)+'</td></tr>'; });
+      isv+='</tbody></table>'; }
+    h+=accSection('saved','Saved / generated',saved.length,isv);
+
+    var isk='';
+    if(!sk.length){ isk='<div class="sub-cell">No skipped emails recorded.</div>'; }
+    else { isk='<table><thead><tr><th>When</th><th>Payor</th><th>Subject</th><th>Why skipped</th><th>Already on file?</th><th>Source</th></tr></thead><tbody>';
+      sk.forEach(function(s){ isk+='<tr><td class="mono" style="font-size:11px">'+esc(s.at)+'</td>'
+          +'<td class="sub-cell" style="font-weight:600">'+esc(s.payor||'\u2014')+'</td>'
+          +'<td class="sub-cell" style="color:var(--slate);max-width:280px">'+esc((s.subject||'').slice(0,80))+'</td>'
+          +'<td class="sub-cell">'+esc(s.reason||'')+(s.rule?(' <span class="badge b-gray" style="font-size:10px">'+esc(s.rule)+'</span>'):'')+'</td>'
+          +'<td>'+(s.already?'<span class="badge b-amber" style="font-size:10px">already on file</span>':'<span class="sub-cell">no</span>')+'</td>'
+          +'<td>'+emailLink(s.emailUrl)+'</td></tr>'; });
+      isk+='</tbody></table>'; }
+    h+=accSection('skipped','Skipped',sk.length,isk);
+
+    var ifl='';
+    if(!fl.length){ ifl='<div class="sub-cell">Nothing flagged \u2014 the agent placed everything.</div>'; }
+    else { ifl='<table><thead><tr><th>When</th><th>Payor (guess)</th><th>Subject</th><th>Why it couldn\u2019t finish</th><th>Source</th></tr></thead><tbody>';
+      fl.forEach(function(s){ ifl+='<tr><td class="mono" style="font-size:11px">'+esc(s.at)+'</td>'
+          +'<td class="sub-cell" style="font-weight:600">'+esc(s.payor||'\u2014')+'</td>'
+          +'<td class="sub-cell" style="color:var(--slate);max-width:280px">'+esc((s.subject||'').slice(0,80))+'</td>'
+          +'<td class="sub-cell">'+esc(s.reason||'')+'</td>'
+          +'<td>'+emailLink(s.emailUrl)+'</td></tr>'; });
+      ifl+='</tbody></table>'; }
+    h+=accSection('flagged','Flagged / needs review',fl.length,ifl);
+
+    var iqa='';
+    if(!qa.length){ iqa='<div class="sub-cell">No QA actions taken.</div>'; }
+    else { iqa='<table><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th><th>OK</th></tr></thead><tbody>';
+      qa.forEach(function(q){ iqa+='<tr><td class="mono" style="font-size:11px">'+esc(String(q.at||''))+'</td>'
+          +'<td class="sub-cell">'+esc((q.user||'').split("@")[0])+'</td>'
+          +'<td><span class="badge b-gray" style="font-size:10px">'+esc(q.action||'')+'</span></td>'
+          +'<td class="sub-cell mono" style="font-size:11px;max-width:380px">'+esc(q.detail||'')+'</td>'
+          +'<td>'+(q.ok?'<span class="badge b-green" style="font-size:10px">yes</span>':'<span class="badge b-red" style="font-size:10px">NO</span>')+'</td></tr>'; });
+      iqa+='</tbody></table>'; }
+    h+=accSection('qa','QA actions',qa.length,iqa);
 
     document.getElementById('log-body').innerHTML=h;
-  }
-  function filterSkipped(){
-    var q=(document.getElementById('skipFilter').value||'').toLowerCase();
-    var rows=document.querySelectorAll('#skipTable .skip-row');
-    for(var i=0;i<rows.length;i++){ rows[i].style.display = rows[i].textContent.toLowerCase().indexOf(q)>=0 ? '' : 'none'; }
+    var firstKey = fl.length?'flagged':(runs.length?'runs':(saved.length?'saved':(sk.length?'skipped':(qa.length?'qa':'runs'))));
+    accToggle(firstKey);
   }
 
   // ==================== SETTINGS ====================
