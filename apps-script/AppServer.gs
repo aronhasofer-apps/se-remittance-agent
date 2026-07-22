@@ -298,85 +298,93 @@ function getSignedInEmail() {
 function reviewData() {
   const log = getLog_();
   const tz = Session.getScriptTimeZone();
-
-  // Column layout of the Messages tab (see MESSAGE_HEADERS in the engine):
-  // 0 Logged at | 1 Email date | 2 Found in | 3 From | 4 Subject | 5 PDF attached
-  // 6 Verdict | 7 Rule matched | 8 Payor short name | 9 Outcome | 10 Note
-  // 11 Message ID | 12 Open in Gmail | 13 Amount | 14 Currency | 15 Invoices | 16 Filename | 17 File link
   const msgs = log.messages;
   const last = msgs.getLastRow();
-  const toProcess = [];
-  const skipped = [];
-  const counts = { saved:0, generated:0, flagged:0, duplicate:0, skipped:0, already:0 };
+  const needsAttention = [];   // agent got stuck: couldn't read payor/amount, or flagged
+  const handled = [];          // saved, generated, or skipped by a known rule
+  const counts = { saved:0, generated:0, skipped:0, flagged:0, needsName:0 };
 
   if (last >= 2) {
-    // Most recent first; cap at the last 200 logged rows so the page stays fast.
     const startRow = Math.max(2, last - 199);
     const rng = msgs.getRange(startRow, 1, last - startRow + 1, 18).getValues();
     for (let i = rng.length - 1; i >= 0; i--) {
       const r = rng[i];
       const outcome = String(r[9] || '').toUpperCase();
+      const payorRaw = String(r[8] || '').trim();
+      // A payor is "unresolved" if it's blank or is a leaked rule-id token.
+      const looksLikeRuleId = payorRaw === '' || (/[_-]/.test(payorRaw) && /^[a-z0-9_ -]+$/.test(payorRaw.toLowerCase()) && /extract|body|attachment|from_pdf|skip|flag/.test(payorRaw.toLowerCase()));
+      const payor = looksLikeRuleId ? '' : payorRaw;
+      const amount = r[13] === '' || r[13] == null ? null : r[13];
+
       const item = {
-        loggedAt: fmtCell_(r[0], tz),
         emailDate: fmtCell_(r[1], tz),
-        foundIn: r[2] || '',
-        from: r[3] || '',
         subject: r[4] || '',
-        hasPdf: String(r[5] || '').toLowerCase() === 'yes',
-        verdict: r[6] || '',
-        rule: r[7] || '',
-        payor: r[8] || '',
-        outcome: outcome,
-        note: r[10] || '',
-        messageId: r[11] || '',
-        gmailUrl: r[12] || '',
-        amount: r[13] || '',
+        payor: payor,
+        amount: amount,
         currency: r[14] || '',
         invoices: r[15] || '',
         filename: r[16] || '',
         fileUrl: r[17] || '',
-        // Method, in the finance-user vocabulary from the old app.
+        gmailUrl: r[12] || '',
         method: methodLabel_(r[6], r[5]),
-        // The action currently in effect, and what it can be changed to.
-        action: outcomeToAction_(outcome),
+        outcome: outcome,
+        // Plain-language status for the badge — never the raw verdict.
+        status: statusLabel_(outcome, payor),
       };
 
-      if (outcome === 'SKIPPED' || outcome === 'ALREADY PROCESSED') {
-        skipped.push(item);
-        if (outcome === 'SKIPPED') counts.skipped++; else counts.already++;
+      // Categorize. Already-processed / saved / generated / rule-skipped = HANDLED.
+      // Only genuinely stuck items (flagged, or missing a payor the agent should have) go to attention.
+      const isStuck = (outcome === 'FLAGGED') || (payor === '' && outcome !== 'SKIPPED' && outcome !== 'ALREADY PROCESSED');
+      if (isStuck) {
+        item.needsName = (payor === '');   // show a name field when we couldn't read the payor
+        if (item.needsName) counts.needsName++;
+        needsAttention.push(item);
       } else {
-        toProcess.push(item);
+        handled.push(item);
         if (outcome === 'SAVED') counts.saved++;
         else if (outcome === 'GENERATED') counts.generated++;
-        else if (outcome === 'DUPLICATE') counts.duplicate++;
+        else if (outcome === 'SKIPPED' || outcome === 'ALREADY PROCESSED') counts.skipped++;
         else counts.flagged++;
       }
     }
   }
 
-  // Last run summary from the Runs tab.
-  let lastRunAt = '', lastRunSummary = '';
-  const runs = log.runs;
-  const lr = runs.getLastRow();
+  // Last run time + the true inbox backlog.
+  let lastRunAt = '', lastRunEpoch = 0;
+  const runs = log.runs; const lr = runs.getLastRow();
   if (lr >= 2) {
     const rr = runs.getRange(lr, 1, 1, 8).getValues()[0];
     lastRunAt = fmtCell_(rr[0], tz);
-    lastRunSummary = rr[7] || '';
+    if (rr[0] instanceof Date) lastRunEpoch = rr[0].getTime();
   }
+  let backlog = { unread: -1, lookbackDays: 0 };
+  try { backlog = inboxBacklog_(); } catch (e) {}
 
   return {
     generatedAt: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm'),
     user: getActiveUser_(),
-    mode: (typeof CONFIG !== 'undefined' && CONFIG.MODE) ? CONFIG.MODE : 'shadow',
     lastRunAt: lastRunAt,
-    lastRunSummary: lastRunSummary,
-    toProcess: toProcess,
-    skipped: skipped,
+    lastRunEpoch: lastRunEpoch,
+    nowEpoch: new Date().getTime(),
+    backlog: backlog,
+    needsAttention: needsAttention,
+    handled: handled,
     counts: counts,
   };
 }
 
-/** Human method label in the old app's vocabulary. */
+/** Plain-language status for a row's badge. Never exposes the internal verdict. */
+function statusLabel_(outcome, payor) {
+  switch (String(outcome).toUpperCase()) {
+    case 'SAVED': return 'Saved';
+    case 'GENERATED': return 'Saved';        // both mean "file is in staging"
+    case 'SKIPPED': return 'Skipped';
+    case 'ALREADY PROCESSED': return 'Already done';
+    case 'DUPLICATE': return 'Duplicate';
+    case 'FLAGGED': return payor ? 'Needs review' : 'Payor not read';
+    default: return payor ? 'Needs review' : 'Payor not read';
+  }
+}
 function methodLabel_(verdict, hasPdf) {
   const v = String(verdict || '').toLowerCase();
   if (v.indexOf('save_attachment') !== -1 || v.indexOf('save attachment') !== -1) return 'Save attachment';
@@ -465,10 +473,9 @@ function getSettings() {
   } catch (e) {}
   return {
     user: getActiveUser_(),
-    mode: eff.mode,
     lookbackDays: eff.lookbackDays,
     maxPerRun: eff.maxPerRun,
-    defaults: { mode: CONFIG.MODE, lookbackDays: CONFIG.LOOKBACK_DAYS, maxPerRun: CONFIG.MAX_PROCESS_PER_RUN },
+    defaults: { lookbackDays: CONFIG.LOOKBACK_DAYS, maxPerRun: CONFIG.MAX_PROCESS_PER_RUN },
     triggerMinutes: CONFIG.TRIGGER_MINUTES,
     groupAddress: CONFIG.GROUP_ADDRESS,
     rulesUrl: CONFIG.RULES_URL,
@@ -487,12 +494,6 @@ function getSettings() {
 function saveSettings(payload) {
   const p = PropertiesService.getScriptProperties();
   const out = { ok: true, changed: [] };
-  if (payload.mode === 'live' && !payload.confirmLive) {
-    return { ok: false, error: 'Switching to LIVE mode requires explicit confirmation.' };
-  }
-  if (payload.mode === 'shadow' || payload.mode === 'live') {
-    p.setProperty('SET_MODE', payload.mode); out.changed.push('mode');
-  }
   const lb = Number(payload.lookbackDays);
   if (isFinite(lb) && lb >= 1 && lb <= 60) { p.setProperty('SET_LOOKBACK_DAYS', String(lb)); out.changed.push('lookback'); }
   const mx = Number(payload.maxPerRun);
@@ -500,7 +501,6 @@ function saveSettings(payload) {
   return out;
 }
 
-/** Delete a UI-created local rule by its id. */
 function deleteLocalRule(ruleId) {
   const p = PropertiesService.getScriptProperties();
   let local = [];
@@ -569,4 +569,105 @@ function getRunLog(limit) {
     }
   } catch (e) {}
   return { user: getActiveUser_(), generatedAt: Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm'), runs: rows, saved: saved };
+}
+
+
+/** Standalone backlog fetch for the Review header refresh. */
+function getBacklog() {
+  try { return inboxBacklog_(); } catch (e) { return { unread: -1, lookbackDays: 0 }; }
+}
+
+// ============================================================
+//  PAYOR WRITE-BACK — approve an unresolved payor, save the rule
+//  to GitHub (shared, permanent) so the agent knows it next time.
+// ============================================================
+
+/**
+ * Approve a payor name for an item the agent couldn't read. Writes a payor rule
+ * to the shared rules.json on GitHub so every future run resolves it automatically.
+ * payload: { subjectKeyword, shortName, action }
+ * Requires a GitHub token in Script Property GITHUB_WRITE_TOKEN.
+ */
+function approvePayorToGitHub(payload) {
+  try {
+    if (!payload || !payload.shortName || !payload.subjectKeyword) {
+      return { ok: false, error: 'Need both a payor name and a subject keyword.' };
+    }
+    const action = (payload.action && ['save_attachment','extract_body','skip','flag'].indexOf(payload.action) !== -1) ? payload.action : 'extract_body';
+    const token = PropertiesService.getScriptProperties().getProperty('GITHUB_WRITE_TOKEN');
+    if (!token) {
+      // No token configured yet — fall back to a local rule so the work isn't lost,
+      // and tell the caller it was saved locally rather than shared.
+      return saveLocalPayorFallback_(payload, action);
+    }
+    const owner = 'aronhasofer-apps', repo = 'se-remittance-agent', path = 'rules.json';
+    const api = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
+    const headers = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' };
+
+    // 1) Read current rules.json + its sha.
+    const getResp = UrlFetchApp.fetch(api + '?ref=main', { headers: headers, muteHttpExceptions: true });
+    if (getResp.getResponseCode() !== 200) {
+      return { ok: false, error: 'Could not read rules.json (HTTP ' + getResp.getResponseCode() + ').' };
+    }
+    const meta = JSON.parse(getResp.getContentText());
+    const current = JSON.parse(Utilities.newBlob(Utilities.base64Decode(meta.content)).getDataAsString());
+
+    // 2) Append the new payor rule (skip if an identical subject keyword already exists).
+    current.rules = current.rules || [];
+    const exists = current.rules.some(function (r) {
+      return r.match && r.match.subject_contains && r.match.subject_contains.indexOf(payload.subjectKeyword) !== -1;
+    });
+    if (!exists) {
+      current.rules.push({
+        id: 'payor-' + payload.shortName.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now(),
+        description: 'Payor ' + payload.shortName + ' (approved in app by ' + getActiveUser_() + ')',
+        match: { subject_contains: [payload.subjectKeyword] },
+        action: action,
+        short_name: payload.shortName,
+      });
+    }
+    // Bump a minor version tag so the Settings page reflects the change.
+    current.version = bumpVersion_(current.version || '1.0.0');
+
+    // 3) Write it back.
+    const body = {
+      message: 'Add payor ' + payload.shortName + ' (approved in app)',
+      content: Utilities.base64Encode(Utilities.newBlob(JSON.stringify(current, null, 2)).getBytes()),
+      sha: meta.sha,
+    };
+    const putResp = UrlFetchApp.fetch(api, { method: 'put', headers: headers, contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true });
+    if (putResp.getResponseCode() >= 200 && putResp.getResponseCode() < 300) {
+      // Refresh the local rules cache so the next run (and Settings) see it immediately.
+      try { loadRules_(); } catch (e) {}
+      return { ok: true, shared: true, version: current.version, existed: exists };
+    }
+    return { ok: false, error: 'GitHub write failed (HTTP ' + putResp.getResponseCode() + ').' };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+/** Fallback: save the payor as a local rule when no GitHub write token is set. */
+function saveLocalPayorFallback_(payload, action) {
+  const p = PropertiesService.getScriptProperties();
+  let list = [];
+  try { const raw = p.getProperty('LOCAL_RULES'); if (raw) list = JSON.parse(raw); } catch (e) {}
+  list.push({
+    id: 'local-payor-' + Date.now(),
+    match: { subject_contains: [payload.subjectKeyword] },
+    action: action,
+    short_name: payload.shortName,
+    created: new Date().toISOString(),
+    createdBy: getActiveUser_(),
+  });
+  p.setProperty('LOCAL_RULES', JSON.stringify(list));
+  return { ok: true, shared: false, note: 'Saved locally (no GitHub write token configured). It works on this deployment; add GITHUB_WRITE_TOKEN to share it.' };
+}
+
+/** Bump the patch component of a semver-ish version string. */
+function bumpVersion_(v) {
+  const parts = String(v).split('.').map(function (x) { return parseInt(x, 10) || 0; });
+  while (parts.length < 3) parts.push(0);
+  parts[2] += 1;
+  return parts.join('.');
 }
