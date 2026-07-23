@@ -1,5 +1,5 @@
 {
-  "version": "1.0.15",
+  "version": "1.0.16",
   "updated": "2026-06-24",
   "rules": [
     {
@@ -103,14 +103,22 @@
       "action": "skip"
     },
     {
-      "id": "svb-notification-skip",
+      "id": "svb-notification",
       "description": "SVB wire payment notification - skip (invoice ranges unacceptable, no individual invoice numbers)",
       "match": {
+        "from_contains": [
+          "Silicon Valley Bank",
+          "svb.com"
+        ],
         "subject_contains": [
           "Payment notification from"
+        ],
+        "snippet_contains": [
+          "SVB Payment Notification"
         ]
       },
-      "action": "skip"
+      "action": "save_attachment",
+      "short_name": ""
     },
     {
       "id": "bms-flag",
