@@ -61,8 +61,8 @@ const CONFIG = {
   MODE: 'shadow',
 
   // Sanity bounds — outside this range the item is flagged, never lost.
-  AMOUNT_MIN: 1,
-  AMOUNT_MAX: 1000000,
+  AMOUNT_MIN: 0.01,
+  AMOUNT_MAX: 1000000000000,
 
   MAX_PROCESS_PER_RUN: 25, // anything beyond rolls to the next 10-min cycle
 }
