@@ -1117,12 +1117,15 @@ function reevaluateBacklog() {
     const r = data[i]; const rowNum = i + 2;
     const outcome = String(r[9] || '').toUpperCase();
     const payorRaw = String(r[8] || '').trim();
+    const subject = String(r[4] || '');
+    // BILL "payment arriving" emails were previously skipped, but they carry the full
+    // invoice+amount — reprocess any that were skipped so their payment gets captured.
+    const wasArrivingSkip = (outcome === 'SKIPPED') && /sent you a payment arriving/i.test(subject);
     // Match what Review shows as "needs attention": a blank OR placeholder/rule-id payor
-    // (e.g. "extract_from_body" from the legacy marker-poisoning) is unresolved, even if
-    // the old outcome reads "Nothing — marker already on thread". Only a terminal-success
-    // outcome takes a row out of the re-evaluation set.
-    const terminalOK = (outcome === 'SKIPPED' || outcome === 'SAVED' || outcome === 'GENERATED');
-    const isStuck = !terminalOK && (outcome === 'FLAGGED' || !payorRaw || looksLikePayorJunk_(payorRaw));
+    // is unresolved. Only a terminal-success outcome (or a legitimate non-arriving skip)
+    // takes a row out of the re-evaluation set.
+    const terminalOK = (outcome === 'SAVED' || outcome === 'GENERATED') || (outcome === 'SKIPPED' && !wasArrivingSkip);
+    const isStuck = !terminalOK && (outcome === 'FLAGGED' || wasArrivingSkip || !payorRaw || looksLikePayorJunk_(payorRaw));
     if (!isStuck) continue;
     if (Date.now() - START > TIME_BUDGET_MS) { out.remaining++; continue; }
     const id = r[11]; if (!id) continue;
@@ -1141,7 +1144,7 @@ function reevaluateBacklog() {
 
     const ext = runExtraction_(msg, v);
     const vq = (ext && ext.ok) ? validateExtraction_(ext, !!ext.sourceBlob) : { ok: false, reason: (ext && ext.reason) || 'extraction failed' };
-    if (!vq.ok) { msgs.getRange(rowNum, 11).setValue('re-evaluated (still needs review): ' + vq.reason); out.stillFlagged++; continue; }
+    if (!vq.ok) { if (wasArrivingSkip) msgs.getRange(rowNum, 10).setValue('FLAGGED'); msgs.getRange(rowNum, 11).setValue('re-evaluated (still needs review): ' + vq.reason); out.stillFlagged++; continue; }
 
     const base = buildFilename_(ext, ext.fileExt || 'pdf');
     if (existing[base.toLowerCase()]) {
