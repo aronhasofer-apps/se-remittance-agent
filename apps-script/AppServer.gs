@@ -1173,6 +1173,21 @@ function reevaluateBacklog() {
       out.alreadyInFolder++; continue;
     }
 
+    // Previously-SKIPPED rows that now extract cleanly are SURFACED in Review (with their
+    // payor/amount/invoice) for human verification rather than auto-filed. Once verified,
+    // a later re-evaluation or an Approve files them (their outcome is then FLAGGED, not
+    // SKIPPED, so this branch no longer applies and the normal save path runs).
+    if (outcome === 'SKIPPED') {
+      msgs.getRange(rowNum, 9).setValue(ext.shortName);
+      msgs.getRange(rowNum, 10).setValue('FLAGGED');
+      msgs.getRange(rowNum, 11).setValue('Was wrongly skipped — surfaced for review; verify, then re-evaluate or approve to file (' + resolved.filename + ')');
+      msgs.getRange(rowNum, 14).setValue(money_(ext.amount));
+      msgs.getRange(rowNum, 15).setValue(ext.currency);
+      msgs.getRange(rowNum, 16).setValue((ext.invoices || []).join(', '));
+      msgs.getRange(rowNum, 17).setValue(resolved.filename);
+      out.stillFlagged++; continue;
+    }
+
     let file;
     try {
       file = ext.sourceBlob
