@@ -1,5 +1,5 @@
 {
-  "version": "1.0.16",
+  "version": "1.0.17",
   "updated": "2026-06-24",
   "rules": [
     {
@@ -35,12 +35,13 @@
     },
     {
       "id": "ariba-skip",
-      "description": "Ariba portal remittance notifications - skip, NO label",
+      "description": "Ariba login-only notices (no invoice/amount in email, view behind login) - skip",
       "match": {
         "subject_contains": [
-          "Notice of new Remittance Advice",
-          "AribaNetworkAdmin",
-          "Notice of new scheduled payment"
+          "Notice of new Remittance Advice"
+        ],
+        "from_contains": [
+          "AribaNetworkAdmin"
         ]
       },
       "action": "skip",
@@ -333,14 +334,18 @@
     },
     {
       "id": "ariba-scheduled",
-      "description": "Ariba scheduled payment - extract from body",
+      "description": "Ariba scheduled payment - has invoice+amount+payor, extract from body",
       "match": {
         "subject_contains": [
           "new scheduled payment",
           "Notice of new scheduled payment"
+        ],
+        "from_contains": [
+          "ansmtp.ariba.com"
         ]
       },
-      "action": "skip"
+      "action": "extract_body",
+      "short_name": ""
     },
     {
       "id": "bill-arriving",
