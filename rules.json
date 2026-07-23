@@ -1,5 +1,5 @@
 {
-  "version": "1.0.18",
+  "version": "1.0.19",
   "updated": "2026-06-24",
   "rules": [
     {
@@ -157,13 +157,15 @@
     },
     {
       "id": "bms-attachment",
-      "description": "Bristol Myers Squibb payment - save PDF attachment",
+      "description": "BMS remittance PDF - real BMS only (subject or bms.com sender), not the generic 'Payment Notification' phrase",
       "match": {
         "subject_contains": [
           "Bristol Myers Squibb",
           "Bristol-Myers",
-          "BMS Payment",
-          "Payment Notification"
+          "BMS Payment"
+        ],
+        "from_contains": [
+          "bms.com"
         ]
       },
       "action": "save_attachment",
@@ -240,17 +242,6 @@
       },
       "action": "save_attachment",
       "short_name": "Terray Therapeutics"
-    },
-    {
-      "id": "gilead-sender",
-      "description": "Gilead Sciences remittance - matched by SENDER (subject is the generic 'Remittance Advice'), save PDF attachment",
-      "match": {
-        "from_contains": [
-          "gilead.com"
-        ]
-      },
-      "action": "save_attachment",
-      "short_name": "Gilead Sciences"
     },
     {
       "id": "bill-payment-misc",
