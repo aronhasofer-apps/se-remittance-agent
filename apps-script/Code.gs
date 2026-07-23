@@ -1183,12 +1183,19 @@ function loadRules_() {
       const text = resp.getContentText();
       parsed = JSON.parse(text);
       source = 'GitHub (live)';
-      if (text.length < 9000) props.setProperty('RULES_CACHE', text);
+      // Cache the full rules for the GitHub-down fallback. CacheService holds up to
+      // 100KB per key (6h TTL), so it keeps working as rules.json grows past the
+      // 9KB Script-Property ceiling. Keep a Property copy too when it still fits,
+      // as a longer-lived backup that survives cache expiry.
+      try { CacheService.getScriptCache().put('RULES_CACHE_V2', text, 21600); } catch (e2) {}
+      try { if (text.length < 9000) props.setProperty('RULES_CACHE', text); } catch (e3) {}
     }
   } catch (e) { /* fall through to cache */ }
 
   if (!parsed) {
-    const cached = props.getProperty('RULES_CACHE');
+    let cached = null;
+    try { cached = CacheService.getScriptCache().get('RULES_CACHE_V2'); } catch (e4) {}
+    if (!cached) cached = props.getProperty('RULES_CACHE');
     if (cached) { parsed = JSON.parse(cached); source = 'cached copy (GitHub unreachable)'; }
   }
   if (!parsed || !Array.isArray(parsed.rules)) {
