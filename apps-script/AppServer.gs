@@ -558,8 +558,8 @@ try {
     const rng = runsSheet.getRange(rlast - n + 1, 1, n, 8).getValues();
     for (let i = rng.length - 1; i >= 0; i--) {
       const r = rng[i];
-      runs.push({ at: fmtCell_(r[0], tz), inWindow: r[1], newLogged: r[2], rulesLoaded: r[3],
-        rulesVersion: r[4], rulesSource: r[5], error: r[6] || '', outcomes: r[7] || '' });
+      runs.push({ at: fmtCell_(r[0], tz), inWindow: String(r[1]==null?'':r[1]), newLogged: String(r[2]==null?'':r[2]), rulesLoaded: String(r[3]==null?'':r[3]),
+        rulesVersion: String(r[4]||''), rulesSource: String(r[5]||''), error: String(r[6]||''), outcomes: String(r[7]||'') });
     }
   }
   } catch (e) {}
@@ -587,7 +587,7 @@ try {
       const docType = pdf ? 'PDF' : 'No attachment';
 
       if (outcome === 'SAVED' || outcome === 'GENERATED') {
-        saved.push({ at: at, payor: payorRaw, amount: r[13], currency: r[14], method: method,
+        saved.push({ at: at, payor: payorRaw, amount: (r[13]==null?'':String(r[13])), currency: String(r[14]||''), method: method,
           docType: docType, invoices: r[15] || '', filename: r[16] || '', fileUrl: r[17] || '',
           emailUrl: emailUrl, subject: subject });
       } else if (outcome === 'SKIPPED' || outcome === 'ALREADY PROCESSED') {
@@ -616,7 +616,7 @@ try {
         const qr = qs.getRange(ql - n + 1, 1, n, 5).getValues();
         for (let i = qr.length - 1; i >= 0; i--) {
           const r = qr[i];
-          qa.push({ at: r[0], user: r[1], action: r[2], detail: r[3], ok: String(r[4]).toLowerCase() === 'yes' });
+          qa.push({ at: fmtCell_(r[0], tz), user: String(r[1]||''), action: String(r[2]||''), detail: String(r[3]||''), ok: String(r[4]).toLowerCase() === 'yes' });
         }
       }
     }
