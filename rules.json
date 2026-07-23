@@ -1,17 +1,7 @@
 {
-  "version": "1.0.14",
+  "version": "1.0.15",
   "updated": "2026-06-24",
   "rules": [
-    {
-      "id": "skip-arriving-prenotice",
-      "description": "BILL 'sent you a payment arriving' pre-notification - no invoice number, unusable; the 'will be deposited today' email carries the invoice",
-      "match": {
-        "subject_contains": [
-          "sent you a payment arriving"
-        ]
-      },
-      "action": "skip"
-    },
     {
       "id": "skip-overdue-invoices",
       "description": "Overdue-invoice/dunning notice - not a payment",
