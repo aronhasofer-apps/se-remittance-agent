@@ -552,6 +552,7 @@ function extractFromBody_(msg, v) {
   else if (ruleId === 'coupa-body' || ruleId === 'neurocrine-body') r = extractCoupa_(subject, body, ruleId);
   else if (/^regeneron/.test(ruleId))                r = extractRegeneron_(text);
   else if (/^svb/.test(ruleId))                      r = extractSVB_(text);
+  else if (/^ariba/.test(ruleId))                    r = extractAriba_(text);
   else                                               r = extractGenericBody_(text);
   if (!r) r = extractGenericBody_(text);
 
@@ -700,6 +701,27 @@ function extractCoupa_(subject, body, ruleId) {
  * next line - which defeated the generic amount finder); currency follows "Payment Currency";
  * clean RI-/CN- invoices sit in the Remittance Detail table.
  */
+function extractAriba_(text) {
+  // SAP/Ariba "You have a new scheduled payment" notice carries real data:
+  // "$NN.NK by <Payor> ... Amount due $N,NNN.NN CUR ... Invoice number RI-XXXX".
+  // (The other Ariba type — "Notice of new Remittance Advice" — has no amount/invoice,
+  // only a login link, and is skipped by rule.)
+  let payor = '';
+  let m = text.match(/\bby\s+(.+?)\s+Amount due/i);
+  if (m) payor = m[1].trim();
+  let amount = null;
+  m = text.match(/(?:Amount due|Original amount)\s*\$?\s*([\d,]+\.\d{2})/i);
+  if (m) amount = toNum_(m[1]);
+  if (!amount) {
+    const all = (text.match(/[\d,]{1,12}\.\d{2}/g) || []).map(function (x) { return toNum_(x); }).filter(function (n) { return n > 0; });
+    if (all.length) amount = Math.max.apply(null, all);
+  }
+  let currency = 'USD';
+  m = text.match(/(?:Amount due|Original amount)\s*\$?\s*[\d,]+\.\d{2}\s*([A-Z]{3})/i);
+  if (m) currency = m[1].toUpperCase();
+  return { payor: payor || '', amount: amount, currency: currency, invoices: findInvoices_(text) };
+}
+
 function extractSVB_(text) {
   // SVB "Payment Notification" template: "made by X to Science Exchange ... Amount: N CUR
   // ... Note: Inv <invoices>". Per policy, only save when invoices are listed individually;
