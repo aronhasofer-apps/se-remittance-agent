@@ -1,5 +1,5 @@
 {
-  "version": "1.0.19",
+  "version": "1.0.20",
   "updated": "2026-06-24",
   "rules": [
     {
@@ -131,8 +131,8 @@
       "action": "flag"
     },
     {
-      "id": "gsk-attachment",
-      "description": "GSK/Haleon Payment Advice Note - save PDF attachment",
+      "id": "payment-advice-note",
+      "description": "Generic SAP 'Payment Advice Note' remittance (GSK, AbbVie, and other shared-format senders) - payor comes from the PDF, not assumed",
       "match": {
         "subject_contains": [
           "Payment Advice Note",
@@ -140,7 +140,7 @@
         ]
       },
       "action": "save_attachment",
-      "short_name": "GSK",
+      "short_name": "extract_from_pdf",
       "notes": "Sender is forwarded via remittances@. Body identifies GSK or Haleon. Check currency."
     },
     {
