@@ -1,5 +1,5 @@
 {
-  "version": "1.0.17",
+  "version": "1.0.18",
   "updated": "2026-06-24",
   "rules": [
     {
@@ -105,14 +105,11 @@
     },
     {
       "id": "svb-notification",
-      "description": "SVB wire payment notification - skip (invoice ranges unacceptable, no individual invoice numbers)",
+      "description": "Actual SVB payment notifications (bank template) - save if invoices listed individually, skip ranges",
       "match": {
         "from_contains": [
-          "Silicon Valley Bank",
-          "svb.com"
-        ],
-        "subject_contains": [
-          "Payment notification from"
+          "svb.com",
+          "Silicon Valley Bank"
         ],
         "snippet_contains": [
           "SVB Payment Notification"
