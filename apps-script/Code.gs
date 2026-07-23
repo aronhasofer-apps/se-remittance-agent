@@ -408,6 +408,9 @@ function threadHasMarker_(msg) {
  */
 function processMessage_(msg, v, staging, log) {
   const ext = runExtraction_(msg, v);
+  if (ext && ext.skip) {
+    return { status: 'SKIPPED', note: ext.reason || 'skipped per policy', shortName: v.shortName };
+  }
   if (!ext.ok) {
     return { status: 'FLAGGED', note: ext.reason, shortName: v.shortName };
   }
@@ -548,8 +551,14 @@ function extractFromBody_(msg, v) {
   else if (ruleId === 'merck-body')                  r = extractMerck_(text);
   else if (ruleId === 'coupa-body' || ruleId === 'neurocrine-body') r = extractCoupa_(subject, body, ruleId);
   else if (/^regeneron/.test(ruleId))                r = extractRegeneron_(text);
+  else if (/^svb/.test(ruleId))                      r = extractSVB_(text);
   else                                               r = extractGenericBody_(text);
   if (!r) r = extractGenericBody_(text);
+
+  // SVB payment with an invoice RANGE (not individually specified) is skipped per policy.
+  if (r && r.isRange) {
+    return { ok: false, skip: true, reason: 'SVB payment lists an invoice range, not individual invoices — skipped per policy' };
+  }
 
   if (!r || !r.amount) {
     return { ok: false, reason: 'Amount not found in body — needs human review' };
@@ -691,6 +700,24 @@ function extractCoupa_(subject, body, ruleId) {
  * next line - which defeated the generic amount finder); currency follows "Payment Currency";
  * clean RI-/CN- invoices sit in the Remittance Detail table.
  */
+function extractSVB_(text) {
+  // SVB "Payment Notification" template: "made by X to Science Exchange ... Amount: N CUR
+  // ... Note: Inv <invoices>". Per policy, only save when invoices are listed individually;
+  // a range ("RI-a to RI-b") is not a usable reference and is skipped.
+  let payor = '';
+  let m = text.match(/made by\s+(.+?)\s+to\s+Science Exchange/i);
+  if (m) payor = m[1].trim().replace(/[,.]\s*$/, '');
+  let amount = null;
+  m = text.match(/Amount:\s*\$?\s*([\d,]+\.\d{2})/i);
+  if (m) amount = toNum_(m[1]);
+  let currency = 'USD';
+  m = text.match(/Amount:\s*\$?\s*[\d,]+\.\d{2}\s*([A-Z]{3})/i);
+  if (m) currency = m[1].toUpperCase();
+  const isRange = /(?:RI|CN)-?\d{5,}\s*(?:to|through|thru|–|—)\s*(?:RI|CN)-?\d{5,}/i.test(text);
+  const invoices = isRange ? [] : findInvoices_(text);
+  return { payor: payor || '', amount: amount, currency: currency, invoices: invoices, isRange: isRange };
+}
+
 function extractRegeneron_(text) {
   let payor = '';
   let m = text.match(/From Payer[\s:]*([A-Za-z][^\r\n]{1,70})/i);
@@ -755,6 +782,12 @@ function extractFromAttachment_(msg, v, att) {
 
   const subjBody = (msg.getSubject() || '') + '\n' + safePlainBody_(msg);
   const full = text + '\n' + subjBody;
+
+  // SVB attachment listing an invoice RANGE is skipped per policy (only individually-listed invoices are usable).
+  const _rid = (v && v.ruleObj) ? (v.ruleObj.id || '') : '';
+  if (/^svb/.test(_rid) && /(?:RI|CN)-?\d{5,}\s*(?:to|through|thru|–|—)\s*(?:RI|CN)-?\d{5,}/i.test(full)) {
+    return { ok: false, skip: true, reason: 'SVB payment lists an invoice range, not individual invoices — skipped per policy' };
+  }
 
   // Amount extraction, in priority order:
   //  1) An explicit "amount paid to vendor / total amount paid" total. BMS/E.R. Squibb
