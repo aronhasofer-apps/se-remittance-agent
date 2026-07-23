@@ -538,7 +538,7 @@ function extractFromBody_(msg, v) {
   // If nothing that looks like a money amount is present, the advice is likely inside an
   // HTML attachment GmailApp can't see — fetch every part via the Gmail REST API.
   if (!/[\d,]{1,12}\.\d{2}/.test(text)) {
-    try { text += '\n' + stripHtml_(fetchAllHtmlParts_(msg.getId())); } catch (e) {}
+    try { text += '\n' + stripHtml_(fetchAllHtmlParts_(msg)); } catch (e) {}
   }
   const ruleId = v.ruleObj ? v.ruleObj.id : '';
 
@@ -1070,38 +1070,30 @@ function sanitize_(s) {
   return String(s).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
 }
 
-function fetchAllHtmlParts_(msgId) {
-  // Fetch EVERY text/plain and text/html part (including HTML attachments) via the Gmail
-  // REST API using the script's own OAuth token. Needed for senders like Regeneron whose
-  // payment advice arrives as an HTML attachment that GmailApp.getAttachments() won't return.
+function fetchAllHtmlParts_(msg) {
+  // Pull HTML out of the FULL raw MIME message. Senders like Regeneron deliver the payment
+  // advice as an HTML attachment that GmailApp.getAttachments() won't surface, but
+  // getRawContent() contains every part. Uses the Gmail scope the app already has.
   try {
-    const token = ScriptApp.getOAuthToken();
-    const base = 'https://gmail.googleapis.com/gmail/v1/users/me/messages/';
-    const resp = UrlFetchApp.fetch(base + encodeURIComponent(msgId) + '?format=full',
-      { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
-    if (resp.getResponseCode() !== 200) return '';
-    const msg = JSON.parse(resp.getContentText());
+    const raw = msg.getRawContent();
+    if (!raw) return '';
     let out = '';
-    function decode_(d) {
-      try { return Utilities.newBlob(Utilities.base64DecodeWebSafe(d)).getDataAsString(); } catch (e) { return ''; }
-    }
-    function walk_(part) {
-      if (!part) return;
-      const mime = String(part.mimeType || '');
-      if ((mime === 'text/html' || mime === 'text/plain') && part.body) {
-        if (part.body.data) out += '\n' + decode_(part.body.data);
-        else if (part.body.attachmentId) {
-          const ar = UrlFetchApp.fetch(base + encodeURIComponent(msgId) + '/attachments/' + part.body.attachmentId,
-            { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
-          if (ar.getResponseCode() === 200) {
-            const d = (JSON.parse(ar.getContentText()) || {}).data;
-            if (d) out += '\n' + decode_(d);
-          }
-        }
+    // Split on MIME boundary delimiter lines (--boundary).
+    const chunks = raw.split(/\r?\n--[^\r\n]+\r?\n/);
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      if (!/content-type:\s*text\/html/i.test(chunk)) continue;
+      const m = chunk.match(/\r?\n\r?\n([\s\S]*)$/);
+      if (!m) continue;
+      let part = m[1];
+      const enc = ((chunk.match(/content-transfer-encoding:\s*([^\r\n;]+)/i) || [null, ''])[1] || '').toLowerCase().trim();
+      if (enc === 'base64') {
+        try { part = Utilities.newBlob(Utilities.base64Decode(part.replace(/[^A-Za-z0-9+/=]/g, ''))).getDataAsString(); } catch (e) {}
+      } else if (enc === 'quoted-printable') {
+        part = part.replace(/=\r?\n/g, '').replace(/=([0-9A-Fa-f]{2})/g, function (_, h) { return String.fromCharCode(parseInt(h, 16)); });
       }
-      if (part.parts) part.parts.forEach(walk_);
+      out += '\n' + part;
     }
-    walk_(msg.payload);
     return out;
   } catch (e) { return ''; }
 }
