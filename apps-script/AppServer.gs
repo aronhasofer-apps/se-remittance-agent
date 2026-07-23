@@ -1143,6 +1143,11 @@ function reevaluateBacklog() {
     }
 
     const ext = runExtraction_(msg, v);
+    if (ext && ext.skip) {
+      msgs.getRange(rowNum, 10).setValue('SKIPPED');
+      msgs.getRange(rowNum, 11).setValue('re-evaluated -> skip (' + (ext.reason || 'policy') + ')');
+      out.nowSkipped++; continue;
+    }
     const vq = (ext && ext.ok) ? validateExtraction_(ext, !!ext.sourceBlob) : { ok: false, reason: (ext && ext.reason) || 'extraction failed' };
     if (!vq.ok) { if (wasArrivingSkip) msgs.getRange(rowNum, 10).setValue('FLAGGED'); msgs.getRange(rowNum, 11).setValue('re-evaluated (still needs review): ' + vq.reason); out.stillFlagged++; continue; }
 
