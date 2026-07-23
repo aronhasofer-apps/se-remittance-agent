@@ -1120,7 +1120,14 @@ function reevaluateBacklog() {
     const subject = String(r[4] || '');
     // BILL "payment arriving" emails were previously skipped, but they carry the full
     // invoice+amount — reprocess any that were skipped so their payment gets captured.
-    const wasArrivingSkip = (outcome === 'SKIPPED') && /sent you a payment arriving/i.test(subject);
+    // Previously-skipped rows whose rule has since changed to "extract" — reprocess them so
+    // their payment is captured (dedup still prevents doubles). Covers BILL "arriving", Ariba
+    // "scheduled payment", and SVB payment notifications.
+    const wasArrivingSkip = (outcome === 'SKIPPED') && (
+      /sent you a payment arriving/i.test(subject) ||
+      /new scheduled payment/i.test(subject) ||
+      /Payment notification from/i.test(subject)
+    );
     // Match what Review shows as "needs attention": a blank OR placeholder/rule-id payor
     // is unresolved. Only a terminal-success outcome (or a legitimate non-arriving skip)
     // takes a row out of the re-evaluation set.
