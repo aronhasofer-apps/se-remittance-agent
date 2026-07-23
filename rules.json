@@ -1,5 +1,5 @@
 {
-  "version": "1.0.20",
+  "version": "1.0.21",
   "updated": "2026-06-24",
   "rules": [
     {
@@ -92,13 +92,14 @@
     },
     {
       "id": "arhelpdesk-skip",
-      "description": "ARHelpDesk internal emails - skip",
+      "description": "Internal AR HelpDesk correspondence - skip (helpdesk sender or ARHelpDesk-tagged subject); dropped broad 'Payment Inquiry'/'FW: Re: Science Exchange' to avoid silently skipping a real remittance",
       "match": {
         "subject_contains": [
           "ARHelpDesk",
-          "FW: Re: Science Exchange",
-          "Science Exchange Payment Inquiry",
-          "Payment Inquiry"
+          "Science Exchange Payment Inquiry"
+        ],
+        "from_contains": [
+          "arhelpdesk@scienceexchange.com"
         ]
       },
       "action": "skip"
