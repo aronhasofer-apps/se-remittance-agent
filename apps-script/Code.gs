@@ -522,7 +522,19 @@ function extractFromBody_(msg, v) {
   try { htmlText = stripHtml_(msg.getBody() || ''); } catch (e) {}
   // Some BILL notifications put the amount in the plain-text part but the invoice
   // TABLE only in the HTML part — so scan both for amounts and invoice numbers.
-  const text = subject + '\n' + body + '\n' + htmlText;
+  // Some remittances (e.g. Regeneron) deliver the full advice as an HTML ATTACHMENT
+  // rather than in the body/HTML body — pull any HTML attachment text in too.
+  let attText = '';
+  try {
+    const atts = msg.getAttachments({ includeInlineImages: false, includeAttachments: true });
+    for (let ai = 0; ai < atts.length; ai++) {
+      const a = atts[ai];
+      if (/html/i.test(a.getContentType() || '') || /\.html?$/i.test(a.getName() || '')) {
+        attText += '\n' + stripHtml_(a.getDataAsString());
+      }
+    }
+  } catch (e) {}
+  const text = subject + '\n' + body + '\n' + htmlText + '\n' + attText;
   const ruleId = v.ruleObj ? v.ruleObj.id : '';
 
   let r = null;
@@ -676,13 +688,18 @@ function extractCoupa_(subject, body, ruleId) {
  */
 function extractRegeneron_(text) {
   let payor = '';
-  let m = text.match(/From Payer\s*[\r\n:]+\s*([^\r\n]+)/i);
+  let m = text.match(/From Payer[\s:]*([A-Za-z][^\r\n]{1,70})/i);
   if (m) payor = m[1].trim();
   let amount = null;
-  m = text.match(/Payment Amount\s*[\r\n:]*\s*([\d,]+\.\d{2})/i);
+  m = text.match(/Payment Amount[\s\S]{0,30}?([\d,]+\.\d{2})/i);
   if (m) amount = toNum_(m[1]);
+  if (!amount) {
+    // Fallback: the payment total is the largest 2-decimal figure in the advice.
+    const all = (text.match(/[\d,]{1,12}\.\d{2}/g) || []).map(function (x) { return toNum_(x); }).filter(function (n) { return n > 0; });
+    if (all.length) amount = Math.max.apply(null, all);
+  }
   let currency = 'USD';
-  m = text.match(/Payment Currency\s*[\r\n:]*\s*([A-Z]{3})/i);
+  m = text.match(/Payment Currency[\s:]*([A-Z]{3})/i);
   if (m) currency = m[1].toUpperCase();
   return { payor: payor || 'Regeneron', amount: amount, currency: currency, invoices: findInvoices_(text) };
 }
