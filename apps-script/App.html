@@ -515,7 +515,8 @@
   }
   function filterAcc(key,q){ q=(q||'').toLowerCase(); var rows=document.querySelectorAll('#acc-'+key+' tbody tr'); for(var i=0;i<rows.length;i++){ rows[i].style.display=rows[i].textContent.toLowerCase().indexOf(q)>=0?'':'none'; } }
   function renderAudit(res){
-    setWho(res.user);
+    res = res || {};
+    try{ setWho(res.user); }catch(e){}
     var meta=document.getElementById('logMeta'); if(meta) meta.textContent='As of '+esc(res.generatedAt);
     var runs=res.runs||[], saved=res.saved||[], sk=res.skipped||[], fl=res.flagged||[], qa=res.qa||[];
     var h='';
