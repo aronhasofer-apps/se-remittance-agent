@@ -1,5 +1,5 @@
 {
-  "version": "1.0.21",
+  "version": "1.0.22",
   "updated": "2026-06-24",
   "rules": [
     {
@@ -320,6 +320,16 @@
       },
       "action": "extract_body",
       "short_name": "extract_from_subject"
+    },
+    {
+      "id": "brex-payment",
+      "description": "Brex notification 'X sent you a payment of $Y' - payor from subject line, extract & generate PDF",
+      "match": {
+        "subject_contains": [
+          "sent you a payment of"
+        ]
+      },
+      "action": "extract_body"
     },
     {
       "id": "ariba-scheduled",
