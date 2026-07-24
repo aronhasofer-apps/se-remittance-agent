@@ -155,6 +155,9 @@
   .inp.qafilter.search-hero{border:1.5px solid #aeb8c2;box-shadow:0 1px 3px rgba(20,40,60,.06)}
   .inp.qafilter.search-hero::placeholder{color:#8a95a0;font-weight:400}
   .inp.qafilter.search-hero:focus{border-color:#4a90d9;box-shadow:0 0 0 3px rgba(74,144,217,.2)}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#eef2f6;border:1px solid #d5dde4;border-radius:14px;padding:4px 6px 4px 11px;font-size:12.5px;color:#25313c}
+  .chip-x{border:none;background:#cdd6de;color:#3a4a57;width:17px;height:17px;border-radius:50%;cursor:pointer;font-size:12px;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0}
+  .chip-x:hover{background:#b0392f;color:#fff}
   .inv-list span{white-space:nowrap;display:inline-block;margin-right:7px}
 </style>
 </head>
@@ -627,6 +630,7 @@
   // ==================== SETTINGS ====================
   var SETTINGS=null;
   var NOTIFY=null;
+  var RECIPIENTS=[];
   function loadSettings(){
     document.getElementById('settings-body').innerHTML='<div class="state"><div class="spinner"></div><div class="headline" style="margin-top:12px">Loading settings</div></div>';
     google.script.run
@@ -663,9 +667,13 @@
     // Card: Notifications
     var hrOpts=''; for(var hh=0;hh<24;hh++){ var label=(hh===0?'12 AM':hh<12?hh+' AM':hh===12?'12 PM':(hh-12)+' PM'); hrOpts+='<option value="'+hh+'"'+((NOTIFY&&NOTIFY.digestHour===hh)?' selected':'')+'>'+label+'</option>'; }
     var qaOpts=''; [1,2,3,4,6,8,12].forEach(function(q){ qaOpts+='<option value="'+q+'"'+((NOTIFY&&NOTIFY.qaScanEveryHours===q)?' selected':'')+'>every '+q+' hour'+(q>1?'s':'')+'</option>'; });
+    RECIPIENTS = (((NOTIFY&&NOTIFY.recipients)||'').split(/[,;\s]+/)).map(function(x){return x.trim();}).filter(function(x){return x.indexOf('@')>0;});
     h+='<div class="card"><div class="card-head">Notifications</div><div class="card-body">';
-    h+='<div class="set-row"><div class="set-label"><div class="t">Email recipients</div><div class="d">Who receives the daily digest. Comma-separated. Leave empty to send nothing.</div></div>'
-      +'<div class="set-control"><input class="inp" id="notify-recipients" style="width:340px;font-family:inherit" placeholder="name@scienceexchange.com, name2@…" value="'+esc((NOTIFY&&NOTIFY.recipients)||'')+'"></div></div>';
+    h+='<div class="set-row"><div class="set-label"><div class="t">Email recipients</div><div class="d">Who receives the daily digest. Add each address below; leave empty to send nothing.</div></div>'
+      +'<div class="set-control" style="flex-direction:column;align-items:flex-start;gap:8px">'
+        +'<div id="recip-chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>'
+        +'<div style="display:flex;gap:6px;align-items:center"><input class="inp" id="recip-input" style="width:280px;font-family:inherit" placeholder="name@scienceexchange.com" onkeydown="if(event.key===\'Enter\'){event.preventDefault();addRecip();}"> <button class="btn sm" onclick="addRecip()">Add</button></div>'
+      +'</div></div>';
     h+='<div class="set-row"><div class="set-label"><div class="t">Daily digest time</div><div class="d">Approximate hour the summary is sent (within about an hour).</div></div>'
       +'<div class="set-control"><select class="inp" id="notify-hour" style="font-family:inherit">'+hrOpts+'</select></div></div>';
     h+='<div class="set-row"><div class="set-label"><div class="t">QA auto-scan</div><div class="d">How often the background QA scan runs. Issues appear in the digest.</div></div>'
@@ -681,6 +689,7 @@
     h+='<div class="kv"><div class="k">Signed in as</div><div class="v">'+esc(s.user)+'</div></div>';
     h+='</div></div>';
     document.getElementById('settings-body').innerHTML=h;
+    renderRecipChips();
   }
   function saveSettingsUI(){
     var payload={ lookbackDays:document.getElementById('set-lookback').value, maxPerRun:document.getElementById('set-max').value };
@@ -689,15 +698,29 @@
       .withFailureHandler(function(err){ flash('Save failed: '+(err.message||err)); })
       .saveSettings(payload);
   }
+  function renderRecipChips(){
+    var c=document.getElementById('recip-chips'); if(!c) return;
+    if(!RECIPIENTS.length){ c.innerHTML='<span class="sub-cell">No recipients yet \u2014 the digest won\u2019t send.</span>'; return; }
+    c.innerHTML=RECIPIENTS.map(function(e,i){ return '<span class="chip">'+esc(e)+'<button class="chip-x" title="Remove" onclick="removeRecip('+i+')">\u00d7</button></span>'; }).join('');
+  }
+  function addRecip(){
+    var el=document.getElementById('recip-input'); if(!el) return;
+    var v=(el.value||'').trim().replace(/[,;]+$/,'');
+    if(!v) return;
+    if(v.indexOf('@')<1 || v.lastIndexOf('.')<v.indexOf('@')){ flash('That doesn\u2019t look like an email address.'); return; }
+    if(RECIPIENTS.indexOf(v)!==-1){ flash('Already added.'); el.value=''; return; }
+    RECIPIENTS.push(v); el.value=''; renderRecipChips();
+  }
+  function removeRecip(i){ RECIPIENTS.splice(i,1); renderRecipChips(); }
   function saveNotify(){
-    var payload={ recipients:document.getElementById('notify-recipients').value, digestHour:document.getElementById('notify-hour').value, qaScanEveryHours:document.getElementById('notify-qa').value };
+    var payload={ recipients:RECIPIENTS.join(', '), digestHour:document.getElementById('notify-hour').value, qaScanEveryHours:document.getElementById('notify-qa').value };
     google.script.run
       .withSuccessHandler(function(res){ if(res.ok){ flash('Notifications saved'+(res.changed&&res.changed.length?(' ('+res.changed.join(', ')+')'):'')+'. Schedule updated.'); loadSettings(); } else flash('Not saved: '+(res.error||'')); })
       .withFailureHandler(function(err){ flash('Save failed: '+(err.message||err)); })
       .saveNotifySettings(payload);
   }
   function testDigest(){
-    var r=document.getElementById('notify-recipients').value.trim();
+    var r=RECIPIENTS.join(', ');
     if(!r){ flash('Add at least one recipient first, then Save, then test.'); return; }
     flash('Sending test digest\u2026');
     google.script.run.withSuccessHandler(function(res){ flash(res.ok?'Test digest sent.':'Failed: '+(res.error||'')); })
