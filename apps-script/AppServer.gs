@@ -51,75 +51,102 @@ function getActiveUser_() {
  * Returns { generatedAt, folders:[{id,name,live}], rows:[...] }
  */
 function qaScan() {
-  const staging = getStagingFolder_(); // reuse the engine's helper
-  const targets = [
-    { id: staging.getId(), name: staging.getName(), live: false },
-    { id: LIVE_FOLDER_ID, name: 'remits not applied (LIVE)', live: true },
-  ];
+  const folder = DriveApp.getFolderById(LIVE_FOLDER_ID);
 
-  const rows = [];
-  targets.forEach(function (t) {
-    let folder;
-    try { folder = DriveApp.getFolderById(t.id); } catch (e) { return; }
-    const it = folder.getFilesByType('application/pdf');
-    while (it.hasNext()) {
-      const f = it.next();
-      const name = f.getName();
-      const analysis = analyzeFilename_(name);
-      if (analysis.issues.length) {
-        rows.push({
-          id: f.getId(),
-          name: name,
-          url: f.getUrl(),
-          folderName: t.name,
-          live: t.live,
-          issues: analysis.issues,
-          severity: analysis.severity,           // 'high' | 'medium' | 'low'
-          proposedName: analysis.proposedName,    // '' if not auto-fixable
-          reextractNeeded: analysis.reextractNeeded,
-        });
+  // Invoice numbers live only in the Saved log (never in the filename), so build a
+  // fileId -> invoices map to tell true duplicates from coincidental same-amount payments.
+  const invByFile = {};
+  try {
+    const saved = getLog_().saved;
+    const lr = saved.getLastRow();
+    if (lr >= 2) {
+      const vals = saved.getRange(2, 1, lr - 1, 9).getValues();
+      vals.forEach(function (r) {
+        const url = String(r[8] || '');
+        const idm = url.match(/[-\w]{25,}/);
+        if (!idm) return;
+        const invs = String(r[4] || '').split(/[,\s]+/).map(function (s) { return s.trim().toUpperCase(); }).filter(Boolean);
+        invByFile[idm[0]] = invs;
+      });
+    }
+  } catch (e) {}
+
+  // One pass over the LIVE folder. Staging is retired (getStagingFolder_ points here too),
+  // so scanning "both" would double-count every file and flag everything as a duplicate.
+  const all = [];
+  const it = folder.getFilesByType('application/pdf');
+  while (it.hasNext()) {
+    const f = it.next();
+    const name = f.getName();
+    const id = f.getId();
+    const a = analyzeFilename_(name);
+    let size = 0; try { size = f.getSize(); } catch (e) {}
+    all.push({
+      id: id, name: name, url: f.getUrl(), folderName: 'remits not applied (LIVE)', live: true,
+      size: size, invoices: invByFile[id] || null, key: qaDedupKey_(name),
+      issues: a.issues.slice(), severity: a.severity, proposedName: a.proposedName, reextractNeeded: a.reextractNeeded,
+    });
+  }
+
+  // Invoice-aware duplicate detection: group by amount+short-payor, then within a group flag a
+  // file as a duplicate only if it shares an invoice with another (or both have no invoices
+  // logged -> "verify"). Same amount + different invoices = distinct payments, not a duplicate.
+  const groups = {};
+  all.forEach(function (r) { (groups[r.key] = groups[r.key] || []).push(r); });
+  Object.keys(groups).forEach(function (k) {
+    const g = groups[k];
+    if (g.length < 2) return;
+    for (let i = 0; i < g.length; i++) {
+      for (let j = i + 1; j < g.length; j++) {
+        const a = g[i], b = g[j];
+        const overlap = invoiceOverlap_(a.invoices, b.invoices);
+        const bothUnknown = (!a.invoices || !a.invoices.length) && (!b.invoices || !b.invoices.length);
+        if (!overlap && !bothUnknown) continue;
+        let keep, drop;
+        if (a.size !== b.size) { keep = a.size > b.size ? a : b; drop = a.size > b.size ? b : a; }
+        else { keep = (a.proposedName && !b.proposedName) ? b : a; drop = (keep === a) ? b : a; }
+        if (!drop.dropSuggested) {
+          drop.issues.push(overlap ? ('duplicate of "' + keep.name + '" \u2014 same invoice(s), safe to trash')
+                                   : ('possible duplicate of "' + keep.name + '" \u2014 verify invoices'));
+          drop.severity = overlap ? 'high' : 'medium';
+          drop.duplicateOf = keep.name;
+          drop.dropSuggested = true;
+        }
       }
     }
   });
 
-  // Duplicate detection across everything scanned (same proposed/target name).
-  const byName = {};
-  rows.forEach(function (r) {
-    const key = (r.proposedName || r.name).toLowerCase();
-    (byName[key] = byName[key] || []).push(r);
-  });
-  Object.keys(byName).forEach(function (k) {
-    if (byName[k].length > 1) {
-      byName[k].forEach(function (r) {
-        if (r.issues.indexOf('possible duplicate') === -1) r.issues.push('possible duplicate');
-      });
-    }
-  });
-
-  // High severity first, live folder first within that.
   const rank = { high: 0, medium: 1, low: 2 };
-  rows.sort(function (a, b) {
-    if (rank[a.severity] !== rank[b.severity]) return rank[a.severity] - rank[b.severity];
-    return (b.live ? 1 : 0) - (a.live ? 1 : 0);
-  });
+  const flagged = all.filter(function (r) { return r.issues.length; })
+                     .sort(function (a, b) { return (rank[a.severity] - rank[b.severity]); });
 
   return {
     generatedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'),
     user: getActiveUser_(),
-    folders: targets,
-    rows: rows,
+    folders: [{ id: LIVE_FOLDER_ID, name: 'remits not applied (LIVE)', live: true }],
+    rows: flagged,
   };
 }
 
-/**
- * Inspect a filename against the SE convention and the failure
- * patterns seen in production. Returns issues + a proposed fix.
- *
- * Convention: "$Amount PayorName[ CUR].pdf"
- *   - leading $, amount with commas & 2 decimals
- *   - short payor name, spaces not underscores
- *   - currency suffix only if non-USD
- */
+/** Normalize a filename to an amount+short-payor key for duplicate grouping. */
+function qaDedupKey_(name) {
+  var base = String(name).replace(/\.pdf$/i, '');
+  var m = base.match(/^\$([\d,]*\.?\d*)\s+(.+)$/);
+  var amt = m ? m[1].replace(/,/g, '') : base;
+  var payor = m ? m[2] : base;
+  payor = payor.replace(/_\d+$/, '');
+  payor = payor.replace(/\s+(GBP|EUR|USD|CAD|CHF|JPY|AUD)\b/ig, '');
+  for (var g = 0; g < 3; g++) payor = payor.replace(/[,\s]+(Inc\.?|LLC\.?|Ltd\.?|Limited|Incorporated|Corp\.?|Corporation|Co\.)\s*$/i, '');
+  payor = payor.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return amt + '|' + payor;
+}
+
+/** True if two invoice lists share any invoice number. */
+function invoiceOverlap_(a, b) {
+  if (!a || !b || !a.length || !b.length) return false;
+  return a.some(function (x) { return b.indexOf(x) !== -1; });
+}
+
 function analyzeFilename_(filename) {
   const issues = [];
   let severity = 'low';
@@ -167,6 +194,17 @@ function analyzeFilename_(filename) {
     if (severity === 'low') severity = 'medium';
   }
 
+  // 7. Payor is a form-field label / junk (e.g. "Supplier Payee Name").
+  if (m && looksLikePayorJunk_(payorPart)) {
+    issues.push('payor looks like a form-field label, not a real payor');
+    severity = 'high';
+    reextractNeeded = true;
+  }
+  // 8. Corporate suffix the short-name convention drops ("..., Inc." / "LLC").
+  if (/[,\s]+(Inc\.?|LLC\.?|Ltd\.?|Limited|Incorporated|Corp\.?|Corporation|Co\.)\s*$/i.test(payorPart.replace(/_\d+$/, ''))) {
+    issues.push('drop the corporate suffix (short-name convention)');
+    if (severity === 'low') severity = 'medium';
+  }
   // Build a proposed corrected name where we safely can (filename-only fixes).
   let proposedName = '';
   if (issues.length) {
