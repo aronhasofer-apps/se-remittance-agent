@@ -875,6 +875,9 @@ function extractFromAttachment_(msg, v, att) {
   let amount = null, note = '';
   let m = text.match(/(?:Total\s+)?Amount\s+Paid(?:\s+to\s+Vendor)?[:\s]*[£$€]?\s*([\d,]+\.\d{2})/i);
   if (!m) m = text.match(/(?:Payment|Net|Total)\s*(?:amount|total|value|paid)?\s*[:\s]\s*[£$€]?\s*([\d,]+\.\d{2})/i);
+  // SAP / Amgen / J&J advices print the grand total masked as "USD ********48,579.08*"
+  // (currency word + asterisk padding), which the labeled patterns above skip over.
+  if (!m) m = text.match(/(?:USD|GBP|EUR)\s*\*{2,}\s*([\d,]+\.\d{2})/i);
   if (m) amount = toNum_(m[1]);
   if (!amount) {
     let all = (text.match(/[£$€]\s*([\d,]+\.\d{2})/g) || [])
@@ -1045,6 +1048,7 @@ const SHORT_NAMES = [
   [/recursion/i, 'Recursion'],
   [/haleon/i, 'GSK'],
   [/amgen/i, 'Amgen'],
+  [/janssen|johnson\s*&\s*johnson/i, 'Janssen Research'],
   [/incyte/i, 'Incyte'],
 ];
 
