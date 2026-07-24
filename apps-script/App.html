@@ -144,6 +144,15 @@
     padding:0 5px; margin-left:6px; border-radius:9px; background:var(--red); color:#fff; font-size:10.5px;
     font-weight:800; vertical-align:middle; }
   .tab-dot { display:inline-block; width:8px; height:8px; margin-left:6px; border-radius:50%; background:var(--red); vertical-align:middle; }
+  .audtbl{width:100%;border-collapse:collapse}
+  .audtbl thead tr:first-child th{position:sticky;top:0;background:#f1f4f7;z-index:3;box-shadow:0 1px 0 #dfe4e9}
+  .audtbl thead tr:nth-child(2) th{position:sticky;top:34px;background:#fbfcfd;z-index:2}
+  .audtbl tbody tr:nth-child(even){background:#fafbfc}
+  .audtbl td{vertical-align:top}
+  .inp.qafilter{background:#fff;border:1px solid #cfd6dd;border-radius:6px;color:#1a1a1a}
+  .inp.qafilter::placeholder{color:#9aa3ac}
+  .inp.qafilter:focus{border-color:#4a90d9;outline:none;box-shadow:0 0 0 2px rgba(74,144,217,.18)}
+  .inv-list span{white-space:nowrap;display:inline-block;margin-right:7px}
 </style>
 </head>
 <body>
@@ -270,7 +279,7 @@
   function flash(m){ var f=document.getElementById('flash'); f.textContent=m; f.classList.add('show'); setTimeout(function(){f.classList.remove('show');},3300); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   function setWho(email){ /* header no longer shows a personal email; identity lives in Settings > Connection */ }
-  function fmtAmt(a,cur){ if(a===''||a==null) return ''; var s='$'+esc(String(a)); if(cur&&cur!=='USD') s+=' '+esc(cur); return s; }
+  function fmtAmt(a,cur){ if(a===''||a==null) return ''; var n=parseFloat(String(a).replace(/[^0-9.\-]/g,'')); var s = isFinite(n) ? ('$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})) : ('$'+esc(String(a))); if(cur&&cur!=='USD') s+=' '+esc(cur); return s; }
 
   // ==================== REVIEW ====================
   var REVIEW = null;
@@ -502,7 +511,7 @@
       +'<div onclick="accToggle(\''+key+'\')" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:12px 16px;background:#fafafa;font-weight:600;user-select:none">'
       +'<span id="chev-'+key+'" style="display:inline-block;width:12px;color:#999">\u25B8</span>'
       +'<span>'+title+'</span><span style="color:#999;font-weight:500">('+count+')</span></div>'
-      +'<div class="acc-body" id="acc-'+key+'" style="display:none;padding:12px 16px;overflow-x:auto">'
+      +'<div class="acc-body" id="acc-'+key+'" style="display:none;padding:12px 16px">'
       +inner+'</div></div>';
   }
   function accToggle(key){
@@ -517,11 +526,11 @@
   function auditTable(key,cols,rows,emptyMsg){
     if(!rows.length) return '<div class="sub-cell">'+emptyMsg+'</div>';
     AUD[key]={cols:cols,rows:rows,sort:{ci:-1,dir:1},filters:{},all:''};
-    var h='<input class="inp" placeholder="Search all columns\u2026" oninput="audAll(\''+key+'\',this.value)" style="margin-bottom:8px;width:260px;font-size:12px;padding:5px 9px;font-family:inherit">';
-    h+='<table id="tbl-'+key+'"><thead><tr>';
+    var h='<input class="inp qafilter" placeholder="Search all columns\u2026" oninput="audAll(\''+key+'\',this.value)" style="margin-bottom:10px;width:340px;font-size:13px;padding:9px 13px;font-family:inherit">';
+    h+='<table class="audtbl" id="tbl-'+key+'"><thead><tr>';
     cols.forEach(function(c,ci){ h+='<th'+(c.num?' class="num"':'')+' style="cursor:pointer;white-space:nowrap;user-select:none" onclick="audSort(\''+key+'\','+ci+')" title="Click to sort">'+esc(c.label)+' <span id="srt-'+key+'-'+ci+'" style="color:#bbb;font-weight:400">\u2195</span></th>'; });
     h+='</tr><tr>';
-    cols.forEach(function(c,ci){ h+='<th'+(c.num?' class="num"':'')+' style="padding:3px 6px"><input class="inp" oninput="audFilter(\''+key+'\','+ci+',this.value)" placeholder="\u2026" style="width:100%;min-width:64px;font-size:11px;padding:3px 6px;font-family:inherit;font-weight:400"></th>'; });
+    cols.forEach(function(c,ci){ var itype=(c.filterType==='date')?'date':'text'; var ph=(c.filterType==='date')?'':'filter\u2026'; h+='<th'+(c.num?' class="num"':'')+' style="padding:4px 6px"><input type="'+itype+'" class="inp qafilter" oninput="audFilter(\''+key+'\','+ci+',this.value)" placeholder="'+ph+'" style="width:100%;min-width:70px;font-size:11px;padding:5px 8px;font-family:inherit;font-weight:400"></th>'; });
     h+='</tr></thead><tbody id="tb-'+key+'"></tbody></table>';
     return h;
   }
@@ -556,7 +565,7 @@
     var h='';
 
     var runCols=[
-      {label:'Run at', get:function(r){return r.at;}, cell:function(r){return '<td class="mono" style="font-size:11px">'+esc(txt(r.at))+'</td>';}},
+      {label:'Run at', filterType:'date', get:function(r){return r.at;}, cell:function(r){return '<td class="mono" style="font-size:11px;white-space:nowrap">'+esc(txt(r.at))+'</td>';}},
       {label:'Seen', num:true, get:function(r){return String(r.inWindow||0);}},
       {label:'New', num:true, get:function(r){return String(r.newLogged||0);}},
       {label:'Rules', get:function(r){return 'v'+(r.rulesVersion||'?')+' \u00b7 '+(r.rulesLoaded||0)+' rules';}, cell:function(r){return '<td class="sub-cell">v'+esc(String(r.rulesVersion||'?'))+' &middot; '+esc(String(r.rulesLoaded||0))+' rules</td>';}},
@@ -567,19 +576,19 @@
     h+=accSection('runs','Agent runs',runs.length,auditTable('runs',runCols,runs,'No runs recorded yet.'));
 
     var savedCols=[
-      {label:'When', get:function(s){return s.at;}, cell:function(s){return '<td class="mono" style="font-size:11px">'+esc(txt(s.at))+'</td>';}},
+      {label:'When', filterType:'date', get:function(s){return s.at;}, cell:function(s){return '<td class="mono" style="font-size:11px;white-space:nowrap">'+esc(txt(s.at))+'</td>';}},
       {label:'Payor', get:function(s){return s.payor||'';}, cell:function(s){return '<td style="font-weight:600">'+esc(s.payor||'')+'</td>';}},
       {label:'Amount', num:true, get:function(s){return fmtAmt(s.amount,s.currency);}, sortVal:function(s){return parseFloat(String(s.amount).replace(/[^0-9.\-]/g,''))||0;}, cell:function(s){return '<td class="num"><span class="amount">'+fmtAmt(s.amount,s.currency)+'</span></td>';}},
       {label:'Method', get:function(s){return s.method||'';}, cell:function(s){return '<td class="sub-cell">'+esc(s.method||'')+'</td>';}},
       {label:'Doc', get:function(s){return s.docType||'';}, cell:function(s){return '<td><span class="badge '+(s.docType==='PDF'?'b-blue':'b-gray')+'" style="font-size:10px">'+esc(s.docType||'')+'</span></td>';}},
-      {label:'Invoices', get:function(s){return s.invoices||'';}, cell:function(s){return '<td class="mono" style="font-size:11px;max-width:200px">'+esc(s.invoices||'')+'</td>';}},
+      {label:'Invoices', get:function(s){return s.invoices||'';}, cell:function(s){var iv=String(s.invoices||''); var parts=iv?iv.split(/,\s*/).map(function(x){return '<span>'+esc(x)+'</span>';}).join(''):'\u2014'; return '<td class="mono inv-list" style="font-size:11px;max-width:270px;line-height:1.75">'+parts+'</td>';}},
       {label:'File', get:function(s){return s.filename||'';}, cell:function(s){return '<td>'+(s.fileUrl?('<a href="'+esc(s.fileUrl)+'" target="_blank" class="mono link" style="font-size:11px">'+esc(s.filename||'file')+'</a>'):('<span class="mono" style="font-size:11px">'+esc(s.filename||'')+'</span>'))+'</td>';}},
       {label:'Source', get:function(s){return s.emailUrl?'open email':'';}, cell:function(s){return '<td>'+emailLink(s.emailUrl)+'</td>';}}
     ];
     h+=accSection('saved','Saved / generated',saved.length,auditTable('saved',savedCols,saved,'No files saved yet.'));
 
     var skCols=[
-      {label:'When', get:function(s){return s.at;}, cell:function(s){return '<td class="mono" style="font-size:11px">'+esc(txt(s.at))+'</td>';}},
+      {label:'When', filterType:'date', get:function(s){return s.at;}, cell:function(s){return '<td class="mono" style="font-size:11px;white-space:nowrap">'+esc(txt(s.at))+'</td>';}},
       {label:'Payor', get:function(s){return s.payor||'';}, cell:function(s){return '<td class="sub-cell" style="font-weight:600">'+esc(s.payor||'\u2014')+'</td>';}},
       {label:'Subject', get:function(s){return s.subject||'';}, cell:function(s){return '<td class="sub-cell" style="color:var(--slate);max-width:280px">'+esc((s.subject||'').slice(0,80))+'</td>';}},
       {label:'Why skipped', get:function(s){return (s.reason||'')+' '+(s.rule||'');}, cell:function(s){return '<td class="sub-cell">'+esc(s.reason||'')+(s.rule?(' <span class="badge b-gray" style="font-size:10px">'+esc(s.rule)+'</span>'):'')+'</td>';}},
@@ -589,7 +598,7 @@
     h+=accSection('skipped','Skipped',sk.length,auditTable('skipped',skCols,sk,'No skipped emails recorded.'));
 
     var flCols=[
-      {label:'When', get:function(s){return s.at;}, cell:function(s){return '<td class="mono" style="font-size:11px">'+esc(txt(s.at))+'</td>';}},
+      {label:'When', filterType:'date', get:function(s){return s.at;}, cell:function(s){return '<td class="mono" style="font-size:11px;white-space:nowrap">'+esc(txt(s.at))+'</td>';}},
       {label:'Payor (guess)', get:function(s){return s.payor||'';}, cell:function(s){return '<td class="sub-cell" style="font-weight:600">'+esc(s.payor||'\u2014')+'</td>';}},
       {label:'Subject', get:function(s){return s.subject||'';}, cell:function(s){return '<td class="sub-cell" style="color:var(--slate);max-width:280px">'+esc((s.subject||'').slice(0,80))+'</td>';}},
       {label:'Why it couldn\u2019t finish', get:function(s){return s.reason||'';}, cell:function(s){return '<td class="sub-cell">'+esc(s.reason||'')+'</td>';}},
@@ -598,7 +607,7 @@
     h+=accSection('flagged','Flagged / needs review',fl.length,auditTable('flagged',flCols,fl,'Nothing flagged \u2014 the agent placed everything.'));
 
     var qaCols=[
-      {label:'When', get:function(q){return q.at;}, cell:function(q){return '<td class="mono" style="font-size:11px">'+esc(String(q.at||''))+'</td>';}},
+      {label:'When', filterType:'date', get:function(q){return q.at;}, cell:function(q){return '<td class="mono" style="font-size:11px;white-space:nowrap">'+esc(String(q.at||''))+'</td>';}},
       {label:'Who', get:function(q){return (q.user||'').split('@')[0];}, cell:function(q){return '<td class="sub-cell">'+esc((q.user||'').split('@')[0])+'</td>';}},
       {label:'Action', get:function(q){return q.action||'';}, cell:function(q){return '<td><span class="badge b-gray" style="font-size:10px">'+esc(q.action||'')+'</span></td>';}},
       {label:'Detail', get:function(q){return q.detail||'';}, cell:function(q){return '<td class="sub-cell mono" style="font-size:11px;max-width:380px">'+esc(q.detail||'')+'</td>';}},
