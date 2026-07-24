@@ -382,7 +382,7 @@
         +'<option value="skip">Skip</option>'
         +'<option value="flag">Flag</option>'
         +'</select>'
-        +'<label class="sub-cell" style="display:flex;align-items:center;gap:3px" title="Optional: also make a rule so future mail from this payor is auto-handled"><input type="checkbox" id="rule-'+i+'"> make rule</label>'
+        +((REVIEW&&REVIEW.owner)?'<label class="sub-cell" style="display:flex;align-items:center;gap:3px" title="Optional: also make a rule so future mail from this payor is auto-handled"><input type="checkbox" id="rule-'+i+'"> make rule</label>':'')
         +'<button class="btn primary sm" onclick="approveName('+i+')">Approve</button>'
         +'</div>'
         +'<div class="sub-cell">Reprocesses this email &amp; writes the correctly-named file. \u201Crule\u201D remembers it for next time.</div>'
@@ -422,7 +422,7 @@
     var name=document.getElementById('nm-'+i).value.trim();
     var action=document.getElementById('act-'+i).value;
     if(!name && action!=='skip' && action!=='flag'){ flash('Enter or confirm a payor short name first.'); return; }
-    var makeRule=document.getElementById('rule-'+i).checked;
+    var _rc=document.getElementById('rule-'+i); var makeRule=_rc?_rc.checked:false;
     // Prefer the sender as the rule signal (stronger than subject); fall back to a subject keyword.
     var ruleSignal='subject', ruleValue='';
     if(makeRule){
