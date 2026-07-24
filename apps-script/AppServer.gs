@@ -1074,6 +1074,7 @@ function reviewApproveRow(payload) {
       msgs.getRange(rowIdx, 18).setValue(outcome.fileUrl || '');
     }
     const good = (outcome.status === 'SAVED' || outcome.status === 'GENERATED');
+    logQaAction_('APPROVE-NEW', [{ id: (payload.messageId || ''), ok: good, name: outcome.filename || '', error: (outcome.note || outcome.status || 'reprocess did not produce a file') }]);
     return { ok: good, mode: 'processed', status: outcome.status, filename: outcome.filename || '',
              note: (good ? 'Wrote ' + outcome.filename + ' to the live folder. ' : (outcome.note || outcome.status) + '. ') + ruleNote };
   } catch (e) {
