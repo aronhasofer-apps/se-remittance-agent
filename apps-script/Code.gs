@@ -171,7 +171,7 @@ function runRemittanceScan() {
         outcome.status,
         outcome.note || '',
         msg.getId(),
-        'https://mail.google.com/mail/u/0/#all/' + msg.getId(),
+        mailLink_(msg),
         outcome.amountText || '',
         outcome.currency || '',
         (outcome.invoices || []).join(', '),
@@ -291,6 +291,36 @@ function applyMarker_(msg) {
                   GmailApp.createLabel(CONFIG.MARKER_LABEL);
     label.addToThread(msg.getThread()); // message stays UNREAD by design
   } catch (e) { /* labeling must never break processing */ }
+}
+
+/**
+ * Portable "open email" link. Uses the RFC-822 Message-ID header — which is
+ * identical in every mailbox that received the email — via a lightweight Gmail
+ * metadata read (headers only, no body/attachments), so the link works for any
+ * finance colleague on the remittances@ group, not just the mailbox owner.
+ * Falls back to the owner-only #all/<id> link if the header can't be read.
+ * Called once per newly-logged message during a scan, so the extra metadata
+ * fetch never touches page loads or the live Review UI.
+ */
+function mailLink_(msg) {
+  var id = msg.getId();
+  try {
+    var resp = UrlFetchApp.fetch(
+      'https://gmail.googleapis.com/gmail/v1/users/me/messages/' + id +
+      '?format=metadata&metadataHeaders=Message-ID',
+      { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+        muteHttpExceptions: true });
+    if (resp.getResponseCode() === 200) {
+      var headers = ((JSON.parse(resp.getContentText()) || {}).payload || {}).headers || [];
+      for (var i = 0; i < headers.length; i++) {
+        if (/^message-id$/i.test(headers[i].name || '')) {
+          var mid = String(headers[i].value || '').trim().replace(/^<|>$/g, '');
+          if (mid) return 'https://mail.google.com/mail/u/0/#search/rfc822msgid:' + encodeURIComponent(mid);
+        }
+      }
+    }
+  } catch (e) { /* fall through to the owner-only link */ }
+  return 'https://mail.google.com/mail/u/0/#all/' + id;
 }
 
 // ======================== CLASSIFICATION ========================
