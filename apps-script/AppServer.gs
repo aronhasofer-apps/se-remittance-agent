@@ -26,7 +26,7 @@ function doGet() {
   return HtmlService.createTemplateFromFile('App')
     .evaluate()
     .setTitle('Remit Fetcher')
-    .setFaviconUrl('https://cdn.jsdelivr.net/gh/aronhasofer-apps/se-remittance-agent@main/favicon.svg')
+    .setFaviconUrl('https://cdn.jsdelivr.net/gh/aronhasofer-apps/se-remittance-agent@main/favicon.png')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
