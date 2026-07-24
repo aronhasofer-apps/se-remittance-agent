@@ -494,7 +494,7 @@
     google.script.run
       .withSuccessHandler(function(res){ AUDIT=res; try{ renderAudit(res); }catch(e){ document.getElementById('log-body').innerHTML='<div class="state"><div class="glyph">&#9888;</div><div class="headline">Render error</div><div class="detail">'+esc(String((e&&e.message)||e))+'</div></div>'; } if(b){b.disabled=false;b.textContent='Refresh';} })
       .withFailureHandler(function(err){ document.getElementById('log-body').innerHTML='<div class="state"><div class="glyph">&#9888;</div><div class="headline">Couldn\u2019t load</div><div class="detail">'+esc(err.message||err)+'</div></div>'; if(b){b.disabled=false;b.textContent='Refresh';} })
-      .getAuditLog(40);
+      .getAuditLog(200);
   }
   function emailLink(u){ return u?('<a href="'+esc(u)+'" target="_blank" class="link">open email</a>'):'<span class="sub-cell">\u2014</span>'; }
   function accSection(key,title,count,inner){
@@ -503,7 +503,6 @@
       +'<span id="chev-'+key+'" style="display:inline-block;width:12px;color:#999">\u25B8</span>'
       +'<span>'+title+'</span><span style="color:#999;font-weight:500">('+count+')</span></div>'
       +'<div class="acc-body" id="acc-'+key+'" style="display:none;padding:12px 16px;overflow-x:auto">'
-      +(count?('<input class="inp" placeholder="Filter this section\u2026" oninput="filterAcc(\''+key+'\',this.value)" style="margin-bottom:10px;width:240px;font-size:12px;padding:5px 9px;font-family:inherit">'):'')
       +inner+'</div></div>';
   }
   function accToggle(key){
@@ -513,7 +512,42 @@
     var chevs=document.querySelectorAll('[id^="chev-"]'); for(var j=0;j<chevs.length;j++) chevs[j].textContent='\u25B8';
     if(!isOpen){ body.style.display=''; var ch=document.getElementById('chev-'+key); if(ch)ch.textContent='\u25BE'; }
   }
-  function filterAcc(key,q){ q=(q||'').toLowerCase(); var rows=document.querySelectorAll('#acc-'+key+' tbody tr'); for(var i=0;i<rows.length;i++){ rows[i].style.display=rows[i].textContent.toLowerCase().indexOf(q)>=0?'':'none'; } }
+  var AUD={};
+  function txt(v){ return (v==null?'':String(v)); }
+  function auditTable(key,cols,rows,emptyMsg){
+    if(!rows.length) return '<div class="sub-cell">'+emptyMsg+'</div>';
+    AUD[key]={cols:cols,rows:rows,sort:{ci:-1,dir:1},filters:{},all:''};
+    var h='<input class="inp" placeholder="Search all columns\u2026" oninput="audAll(\''+key+'\',this.value)" style="margin-bottom:8px;width:260px;font-size:12px;padding:5px 9px;font-family:inherit">';
+    h+='<table id="tbl-'+key+'"><thead><tr>';
+    cols.forEach(function(c,ci){ h+='<th'+(c.num?' class="num"':'')+' style="cursor:pointer;white-space:nowrap;user-select:none" onclick="audSort(\''+key+'\','+ci+')" title="Click to sort">'+esc(c.label)+' <span id="srt-'+key+'-'+ci+'" style="color:#bbb;font-weight:400">\u2195</span></th>'; });
+    h+='</tr><tr>';
+    cols.forEach(function(c,ci){ h+='<th'+(c.num?' class="num"':'')+' style="padding:3px 6px"><input class="inp" oninput="audFilter(\''+key+'\','+ci+',this.value)" placeholder="\u2026" style="width:100%;min-width:64px;font-size:11px;padding:3px 6px;font-family:inherit;font-weight:400"></th>'; });
+    h+='</tr></thead><tbody id="tb-'+key+'"></tbody></table>';
+    return h;
+  }
+  function audRender(key){
+    var s=AUD[key]; if(!s) return; var body=document.getElementById('tb-'+key); if(!body) return;
+    var all=(s.all||'').toLowerCase();
+    var rows=s.rows.filter(function(r){
+      if(all){ var j=s.cols.map(function(c){return txt(c.get(r));}).join('\n').toLowerCase(); if(j.indexOf(all)<0) return false; }
+      for(var ci in s.filters){ var q=(s.filters[ci]||'').toLowerCase(); if(q && txt(s.cols[ci].get(r)).toLowerCase().indexOf(q)<0) return false; }
+      return true;
+    });
+    if(s.sort.ci>=0){ var c=s.cols[s.sort.ci], d=s.sort.dir; rows=rows.slice().sort(function(a,b){
+      var va=c.sortVal?c.sortVal(a):txt(c.get(a)), vb=c.sortVal?c.sortVal(b):txt(c.get(b));
+      if(c.num && !c.sortVal){ va=parseFloat(String(va).replace(/[^0-9.\-]/g,''))||0; vb=parseFloat(String(vb).replace(/[^0-9.\-]/g,''))||0; }
+      if(typeof va==='string'){ var la=va.toLowerCase(), lb=String(vb).toLowerCase(); return (la<lb?-1:la>lb?1:0)*d; }
+      return (va<vb?-1:va>vb?1:0)*d;
+    }); }
+    var html=rows.map(function(r){ return '<tr>'+s.cols.map(function(c){ return c.cell?c.cell(r):('<td'+(c.num?' class="num"':'')+'>'+esc(txt(c.get(r)))+'</td>'); }).join('')+'</tr>'; }).join('');
+    body.innerHTML = html || '<tr><td colspan="'+s.cols.length+'" class="sub-cell" style="text-align:center;padding:14px">No rows match these filters.</td></tr>';
+  }
+  function audAll(key,v){ if(AUD[key]){ AUD[key].all=v; audRender(key); } }
+  function audFilter(key,ci,v){ if(AUD[key]){ AUD[key].filters[ci]=v; audRender(key); } }
+  function audSort(key,ci){ var s=AUD[key]; if(!s) return; if(s.sort.ci===ci) s.sort.dir*=-1; else { s.sort.ci=ci; s.sort.dir=1; }
+    s.cols.forEach(function(c,i){ var el=document.getElementById('srt-'+key+'-'+i); if(el){ el.textContent=(i===ci)?(s.sort.dir>0?'\u25B2':'\u25BC'):'\u2195'; el.style.color=(i===ci)?'#333':'#bbb'; } });
+    audRender(key);
+  }
   function renderAudit(res){
     res = res || {};
     try{ setWho(res.user); }catch(e){}
@@ -521,66 +555,59 @@
     var runs=res.runs||[], saved=res.saved||[], sk=res.skipped||[], fl=res.flagged||[], qa=res.qa||[];
     var h='';
 
-    var ir='';
-    if(!runs.length){ ir='<div class="sub-cell">No runs recorded yet.</div>'; }
-    else { ir='<table><thead><tr><th>Run at</th><th class="num">Seen</th><th class="num">New</th><th>Rules</th><th>Source</th><th>Outcomes</th><th>Status</th></tr></thead><tbody>';
-      runs.forEach(function(r){ var st=r.error?'<span class="badge b-red">error</span>':'<span class="badge b-green">ok</span>';
-        ir+='<tr><td class="mono" style="font-size:11px">'+esc(r.at)+'</td><td class="num mono">'+esc(String(r.inWindow||0))+'</td><td class="num mono">'+esc(String(r.newLogged||0))+'</td>'
-          +'<td class="sub-cell">v'+esc(String(r.rulesVersion||'?'))+' &middot; '+esc(String(r.rulesLoaded||0))+' rules</td>'
-          +'<td class="sub-cell">'+esc(String(r.rulesSource||''))+'</td>'
-          +'<td class="sub-cell">'+esc(r.outcomes||'')+'</td>'
-          +'<td>'+st+(r.error?('<div class="sub-cell" style="color:var(--red);margin-top:2px">'+esc(r.error)+'</div>'):'')+'</td></tr>'; });
-      ir+='</tbody></table>'; }
-    h+=accSection('runs','Agent runs',runs.length,ir);
+    var runCols=[
+      {label:'Run at', get:function(r){return r.at;}, cell:function(r){return '<td class="mono" style="font-size:11px">'+esc(txt(r.at))+'</td>';}},
+      {label:'Seen', num:true, get:function(r){return String(r.inWindow||0);}},
+      {label:'New', num:true, get:function(r){return String(r.newLogged||0);}},
+      {label:'Rules', get:function(r){return 'v'+(r.rulesVersion||'?')+' \u00b7 '+(r.rulesLoaded||0)+' rules';}, cell:function(r){return '<td class="sub-cell">v'+esc(String(r.rulesVersion||'?'))+' &middot; '+esc(String(r.rulesLoaded||0))+' rules</td>';}},
+      {label:'Source', get:function(r){return r.rulesSource||'';}, cell:function(r){return '<td class="sub-cell">'+esc(String(r.rulesSource||''))+'</td>';}},
+      {label:'Outcomes', get:function(r){return r.outcomes||'';}, cell:function(r){return '<td class="sub-cell">'+esc(r.outcomes||'')+'</td>';}},
+      {label:'Status', get:function(r){return r.error?'error':'ok';}, cell:function(r){var st=r.error?'<span class="badge b-red">error</span>':'<span class="badge b-green">ok</span>'; return '<td>'+st+(r.error?('<div class="sub-cell" style="color:var(--red);margin-top:2px">'+esc(r.error)+'</div>'):'')+'</td>';}}
+    ];
+    h+=accSection('runs','Agent runs',runs.length,auditTable('runs',runCols,runs,'No runs recorded yet.'));
 
-    var isv='';
-    if(!saved.length){ isv='<div class="sub-cell">No files saved yet.</div>'; }
-    else { isv='<table><thead><tr><th>When</th><th>Payor</th><th class="num">Amount</th><th>Method</th><th>Doc</th><th>Invoices</th><th>File</th><th>Source</th></tr></thead><tbody>';
-      saved.forEach(function(s){ isv+='<tr><td class="mono" style="font-size:11px">'+esc(s.at)+'</td><td style="font-weight:600">'+esc(s.payor||'')+'</td>'
-          +'<td class="num"><span class="amount">'+fmtAmt(s.amount,s.currency)+'</span></td>'
-          +'<td class="sub-cell">'+esc(s.method||'')+'</td>'
-          +'<td><span class="badge '+(s.docType==='PDF'?'b-blue':'b-gray')+'" style="font-size:10px">'+esc(s.docType||'')+'</span></td>'
-          +'<td class="mono" style="font-size:11px;max-width:200px">'+esc(s.invoices||'')+'</td>'
-          +'<td>'+(s.fileUrl?('<a href="'+esc(s.fileUrl)+'" target="_blank" class="mono link" style="font-size:11px">'+esc(s.filename||'file')+'</a>'):('<span class="mono" style="font-size:11px">'+esc(s.filename||'')+'</span>'))+'</td>'
-          +'<td>'+emailLink(s.emailUrl)+'</td></tr>'; });
-      isv+='</tbody></table>'; }
-    h+=accSection('saved','Saved / generated',saved.length,isv);
+    var savedCols=[
+      {label:'When', get:function(s){return s.at;}, cell:function(s){return '<td class="mono" style="font-size:11px">'+esc(txt(s.at))+'</td>';}},
+      {label:'Payor', get:function(s){return s.payor||'';}, cell:function(s){return '<td style="font-weight:600">'+esc(s.payor||'')+'</td>';}},
+      {label:'Amount', num:true, get:function(s){return fmtAmt(s.amount,s.currency);}, sortVal:function(s){return parseFloat(String(s.amount).replace(/[^0-9.\-]/g,''))||0;}, cell:function(s){return '<td class="num"><span class="amount">'+fmtAmt(s.amount,s.currency)+'</span></td>';}},
+      {label:'Method', get:function(s){return s.method||'';}, cell:function(s){return '<td class="sub-cell">'+esc(s.method||'')+'</td>';}},
+      {label:'Doc', get:function(s){return s.docType||'';}, cell:function(s){return '<td><span class="badge '+(s.docType==='PDF'?'b-blue':'b-gray')+'" style="font-size:10px">'+esc(s.docType||'')+'</span></td>';}},
+      {label:'Invoices', get:function(s){return s.invoices||'';}, cell:function(s){return '<td class="mono" style="font-size:11px;max-width:200px">'+esc(s.invoices||'')+'</td>';}},
+      {label:'File', get:function(s){return s.filename||'';}, cell:function(s){return '<td>'+(s.fileUrl?('<a href="'+esc(s.fileUrl)+'" target="_blank" class="mono link" style="font-size:11px">'+esc(s.filename||'file')+'</a>'):('<span class="mono" style="font-size:11px">'+esc(s.filename||'')+'</span>'))+'</td>';}},
+      {label:'Source', get:function(s){return s.emailUrl?'open email':'';}, cell:function(s){return '<td>'+emailLink(s.emailUrl)+'</td>';}}
+    ];
+    h+=accSection('saved','Saved / generated',saved.length,auditTable('saved',savedCols,saved,'No files saved yet.'));
 
-    var isk='';
-    if(!sk.length){ isk='<div class="sub-cell">No skipped emails recorded.</div>'; }
-    else { isk='<table><thead><tr><th>When</th><th>Payor</th><th>Subject</th><th>Why skipped</th><th>Already on file?</th><th>Source</th></tr></thead><tbody>';
-      sk.forEach(function(s){ isk+='<tr><td class="mono" style="font-size:11px">'+esc(s.at)+'</td>'
-          +'<td class="sub-cell" style="font-weight:600">'+esc(s.payor||'\u2014')+'</td>'
-          +'<td class="sub-cell" style="color:var(--slate);max-width:280px">'+esc((s.subject||'').slice(0,80))+'</td>'
-          +'<td class="sub-cell">'+esc(s.reason||'')+(s.rule?(' <span class="badge b-gray" style="font-size:10px">'+esc(s.rule)+'</span>'):'')+'</td>'
-          +'<td>'+(s.already?'<span class="badge b-amber" style="font-size:10px">already on file</span>':'<span class="sub-cell">no</span>')+'</td>'
-          +'<td>'+emailLink(s.emailUrl)+'</td></tr>'; });
-      isk+='</tbody></table>'; }
-    h+=accSection('skipped','Skipped',sk.length,isk);
+    var skCols=[
+      {label:'When', get:function(s){return s.at;}, cell:function(s){return '<td class="mono" style="font-size:11px">'+esc(txt(s.at))+'</td>';}},
+      {label:'Payor', get:function(s){return s.payor||'';}, cell:function(s){return '<td class="sub-cell" style="font-weight:600">'+esc(s.payor||'\u2014')+'</td>';}},
+      {label:'Subject', get:function(s){return s.subject||'';}, cell:function(s){return '<td class="sub-cell" style="color:var(--slate);max-width:280px">'+esc((s.subject||'').slice(0,80))+'</td>';}},
+      {label:'Why skipped', get:function(s){return (s.reason||'')+' '+(s.rule||'');}, cell:function(s){return '<td class="sub-cell">'+esc(s.reason||'')+(s.rule?(' <span class="badge b-gray" style="font-size:10px">'+esc(s.rule)+'</span>'):'')+'</td>';}},
+      {label:'Already on file?', get:function(s){return s.already?'already on file':'no';}, cell:function(s){return '<td>'+(s.already?'<span class="badge b-amber" style="font-size:10px">already on file</span>':'<span class="sub-cell">no</span>')+'</td>';}},
+      {label:'Source', get:function(s){return s.emailUrl?'open email':'';}, cell:function(s){return '<td>'+emailLink(s.emailUrl)+'</td>';}}
+    ];
+    h+=accSection('skipped','Skipped',sk.length,auditTable('skipped',skCols,sk,'No skipped emails recorded.'));
 
-    var ifl='';
-    if(!fl.length){ ifl='<div class="sub-cell">Nothing flagged \u2014 the agent placed everything.</div>'; }
-    else { ifl='<table><thead><tr><th>When</th><th>Payor (guess)</th><th>Subject</th><th>Why it couldn\u2019t finish</th><th>Source</th></tr></thead><tbody>';
-      fl.forEach(function(s){ ifl+='<tr><td class="mono" style="font-size:11px">'+esc(s.at)+'</td>'
-          +'<td class="sub-cell" style="font-weight:600">'+esc(s.payor||'\u2014')+'</td>'
-          +'<td class="sub-cell" style="color:var(--slate);max-width:280px">'+esc((s.subject||'').slice(0,80))+'</td>'
-          +'<td class="sub-cell">'+esc(s.reason||'')+'</td>'
-          +'<td>'+emailLink(s.emailUrl)+'</td></tr>'; });
-      ifl+='</tbody></table>'; }
-    h+=accSection('flagged','Flagged / needs review',fl.length,ifl);
+    var flCols=[
+      {label:'When', get:function(s){return s.at;}, cell:function(s){return '<td class="mono" style="font-size:11px">'+esc(txt(s.at))+'</td>';}},
+      {label:'Payor (guess)', get:function(s){return s.payor||'';}, cell:function(s){return '<td class="sub-cell" style="font-weight:600">'+esc(s.payor||'\u2014')+'</td>';}},
+      {label:'Subject', get:function(s){return s.subject||'';}, cell:function(s){return '<td class="sub-cell" style="color:var(--slate);max-width:280px">'+esc((s.subject||'').slice(0,80))+'</td>';}},
+      {label:'Why it couldn\u2019t finish', get:function(s){return s.reason||'';}, cell:function(s){return '<td class="sub-cell">'+esc(s.reason||'')+'</td>';}},
+      {label:'Source', get:function(s){return s.emailUrl?'open email':'';}, cell:function(s){return '<td>'+emailLink(s.emailUrl)+'</td>';}}
+    ];
+    h+=accSection('flagged','Flagged / needs review',fl.length,auditTable('flagged',flCols,fl,'Nothing flagged \u2014 the agent placed everything.'));
 
-    var iqa='';
-    if(!qa.length){ iqa='<div class="sub-cell">No QA actions taken.</div>'; }
-    else { iqa='<table><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th><th>OK</th></tr></thead><tbody>';
-      qa.forEach(function(q){ iqa+='<tr><td class="mono" style="font-size:11px">'+esc(String(q.at||''))+'</td>'
-          +'<td class="sub-cell">'+esc((q.user||'').split("@")[0])+'</td>'
-          +'<td><span class="badge b-gray" style="font-size:10px">'+esc(q.action||'')+'</span></td>'
-          +'<td class="sub-cell mono" style="font-size:11px;max-width:380px">'+esc(q.detail||'')+'</td>'
-          +'<td>'+(q.ok?'<span class="badge b-green" style="font-size:10px">yes</span>':'<span class="badge b-red" style="font-size:10px">NO</span>')+'</td></tr>'; });
-      iqa+='</tbody></table>'; }
-    h+=accSection('qa','QA actions',qa.length,iqa);
+    var qaCols=[
+      {label:'When', get:function(q){return q.at;}, cell:function(q){return '<td class="mono" style="font-size:11px">'+esc(String(q.at||''))+'</td>';}},
+      {label:'Who', get:function(q){return (q.user||'').split('@')[0];}, cell:function(q){return '<td class="sub-cell">'+esc((q.user||'').split('@')[0])+'</td>';}},
+      {label:'Action', get:function(q){return q.action||'';}, cell:function(q){return '<td><span class="badge b-gray" style="font-size:10px">'+esc(q.action||'')+'</span></td>';}},
+      {label:'Detail', get:function(q){return q.detail||'';}, cell:function(q){return '<td class="sub-cell mono" style="font-size:11px;max-width:380px">'+esc(q.detail||'')+'</td>';}},
+      {label:'OK', get:function(q){return q.ok?'yes':'NO';}, cell:function(q){return '<td>'+(q.ok?'<span class="badge b-green" style="font-size:10px">yes</span>':'<span class="badge b-red" style="font-size:10px">NO</span>')+'</td>';}}
+    ];
+    h+=accSection('qa','QA actions',qa.length,auditTable('qa',qaCols,qa,'No QA actions taken.'));
 
     document.getElementById('log-body').innerHTML=h;
+    ['runs','saved','skipped','flagged','qa'].forEach(function(k){ if(AUD[k]) audRender(k); });
     var firstKey = fl.length?'flagged':(runs.length?'runs':(saved.length?'saved':(sk.length?'skipped':(qa.length?'qa':'runs'))));
     accToggle(firstKey);
   }
