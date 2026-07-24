@@ -152,6 +152,9 @@
   .inp.qafilter{background:#fff;border:1px solid #cfd6dd;border-radius:6px;color:#1a1a1a}
   .inp.qafilter::placeholder{color:#9aa3ac}
   .inp.qafilter:focus{border-color:#4a90d9;outline:none;box-shadow:0 0 0 2px rgba(74,144,217,.18)}
+  .inp.qafilter.search-hero{border:1.5px solid #aeb8c2;box-shadow:0 1px 3px rgba(20,40,60,.06)}
+  .inp.qafilter.search-hero::placeholder{color:#8a95a0;font-weight:400}
+  .inp.qafilter.search-hero:focus{border-color:#4a90d9;box-shadow:0 0 0 3px rgba(74,144,217,.2)}
   .inv-list span{white-space:nowrap;display:inline-block;margin-right:7px}
 </style>
 </head>
@@ -526,11 +529,11 @@
   function auditTable(key,cols,rows,emptyMsg){
     if(!rows.length) return '<div class="sub-cell">'+emptyMsg+'</div>';
     AUD[key]={cols:cols,rows:rows,sort:{ci:-1,dir:1},filters:{},all:''};
-    var h='<input class="inp qafilter" placeholder="Search all columns\u2026" oninput="audAll(\''+key+'\',this.value)" style="margin-bottom:10px;width:340px;font-size:13px;padding:9px 13px;font-family:inherit">';
+    var h='<div style="margin-bottom:12px"><input class="inp qafilter search-hero" placeholder="Search all columns\u2026" oninput="audAll(\''+key+'\',this.value)" style="width:min(460px,100%);font-size:14px;padding:11px 15px;font-family:inherit;font-weight:500"></div>';
     h+='<table class="audtbl" id="tbl-'+key+'"><thead><tr>';
     cols.forEach(function(c,ci){ h+='<th'+(c.num?' class="num"':'')+' style="cursor:pointer;white-space:nowrap;user-select:none" onclick="audSort(\''+key+'\','+ci+')" title="Click to sort">'+esc(c.label)+' <span id="srt-'+key+'-'+ci+'" style="color:#bbb;font-weight:400">\u2195</span></th>'; });
     h+='</tr><tr>';
-    cols.forEach(function(c,ci){ var itype=(c.filterType==='date')?'date':'text'; var ph=(c.filterType==='date')?'':'filter\u2026'; h+='<th'+(c.num?' class="num"':'')+' style="padding:4px 6px"><input type="'+itype+'" class="inp qafilter" oninput="audFilter(\''+key+'\','+ci+',this.value)" placeholder="'+ph+'" style="width:100%;min-width:70px;font-size:11px;padding:5px 8px;font-family:inherit;font-weight:400"></th>'; });
+    cols.forEach(function(c,ci){ var itype=(c.filterType==='date')?'date':'text'; var ph=(c.filterType==='date')?'':'filter\u2026'; h+='<th'+(c.num?' class="num"':'')+' style="padding:4px 6px"><input type="'+itype+'" class="inp qafilter" oninput="audFilter(\''+key+'\','+ci+',this.value)" placeholder="'+ph+'" style="width:100%;min-width:70px;font-size:12px;padding:6px 9px;font-family:inherit;font-weight:400"></th>'; });
     h+='</tr></thead><tbody id="tb-'+key+'"></tbody></table>';
     return h;
   }
