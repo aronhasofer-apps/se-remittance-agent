@@ -1,6 +1,6 @@
 {
-  "version": "1.0.22",
-  "updated": "2026-06-24",
+  "version": "1.0.23",
+  "updated": "2026-07-24",
   "rules": [
     {
       "id": "skip-overdue-invoices",
@@ -29,6 +29,16 @@
       "match": {
         "subject_contains": [
           "hiring paradox"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "bill-marketing-skip",
+      "description": "BILL.com marketing/survey emails (marketing@hello.bill.com, e.g. 'A penny for your thoughts') - not a remittance",
+      "match": {
+        "from_contains": [
+          "marketing@hello.bill.com"
         ]
       },
       "action": "skip"
