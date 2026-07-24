@@ -152,6 +152,12 @@ function runRemittanceScan() {
         else counts.flagged++;
       }
 
+      // Mark handled mail read so an unread inbox means "not yet processed."
+      // Deferred (over per-run cap) hit `continue` above and never reach here,
+      // so they correctly stay unread for the next cycle. Best-effort — a
+      // read-state failure must never block logging or dedup.
+      try { msg.markRead(); } catch (e) {}
+
       rows.push([
         fmtDate_(new Date()),
         fmtDate_(msg.getDate()),
