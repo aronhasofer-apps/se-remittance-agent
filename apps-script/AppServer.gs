@@ -37,6 +37,21 @@ function include(name) {
 }
 
 /** Who is signed in — used for the run log and the header. */
+/**
+ * True only when the person using the app IS the owner it runs as. The web app
+ * executes as the owner, but Google still reports the signed-in visitor via
+ * getActiveUser() (same Workspace domain), so owner == (active email === effective
+ * email). Used to restrict rule creation to the owner even though the app link is
+ * open to everyone at Science Exchange.
+ */
+function isOwner_() {
+  try {
+    var a = (Session.getActiveUser().getEmail() || '').toLowerCase();
+    var e = (Session.getEffectiveUser().getEmail() || '').toLowerCase();
+    return !!a && !!e && a === e;
+  } catch (x) { return false; }
+}
+
 function getActiveUser_() {
   try { return Session.getActiveUser().getEmail() || 'unknown'; }
   catch (e) { return 'unknown'; }
@@ -428,6 +443,7 @@ function reviewData() {
     needsAttention: needsAttention,
     handled: handled,
     counts: counts,
+    owner: isOwner_(),
   };
 }
 
@@ -486,6 +502,7 @@ function reviewRerun() {
  */
 function reviewCreateRule(payload) {
   try {
+    if (!isOwner_()) return { ok: false, error: 'Only the tool owner can create or change rules.' };
     if (!payload || !payload.action) throw new Error('missing action');
     const res = persistRule_(payload.match || {}, payload.action, payload.short_name || '', 'Rule created in Review by ' + getActiveUser_());
     return { ok: true, shared: !!res.shared, note: res.note || '', version: res.version };
@@ -751,6 +768,7 @@ function persistRule_(match, action, shortName, descr) {
  */
 function approvePayorToGitHub(payload) {
   try {
+    if (!isOwner_()) return { ok: false, error: 'Only the tool owner can create or change rules.' };
     if (!payload || !payload.shortName || !payload.subjectKeyword) {
       return { ok: false, error: 'Need both a payor name and a subject keyword.' };
     }
@@ -1043,7 +1061,9 @@ function reviewApproveRow(payload) {
 
     // Optionally persist a rule for FUTURE mail (sender or subject signal).
     let ruleNote = '';
-    if (payload.makeRule && payload.ruleValue) {
+    if (payload.makeRule && payload.ruleValue && !isOwner_()) {
+      ruleNote = 'Rule not created \u2014 only the tool owner can add or change shared rules. This item was still filed.';
+    } else if (payload.makeRule && payload.ruleValue) {
       const match = {};
       if (payload.ruleSignal === 'from') match.from_contains = [String(payload.ruleValue).trim()];
       else match.subject_contains = [String(payload.ruleValue).trim()];
