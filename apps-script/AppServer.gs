@@ -448,19 +448,8 @@ function reviewRerun() {
 function reviewCreateRule(payload) {
   try {
     if (!payload || !payload.action) throw new Error('missing action');
-    const props = PropertiesService.getScriptProperties();
-    const raw = props.getProperty('LOCAL_RULES');
-    const list = raw ? JSON.parse(raw) : [];
-    list.push({
-      id: 'local-' + Date.now(),
-      match: payload.match || {},
-      action: payload.action,
-      short_name: payload.short_name || '',
-      created: new Date().toISOString(),
-      createdBy: getActiveUser_(),
-    });
-    props.setProperty('LOCAL_RULES', JSON.stringify(list));
-    return { ok: true, count: list.length };
+    const res = persistRule_(payload.match || {}, payload.action, payload.short_name || '', 'Rule created in Review by ' + getActiveUser_());
+    return { ok: true, shared: !!res.shared, note: res.note || '', version: res.version };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -642,6 +631,80 @@ function getBacklog() {
 // ============================================================
 
 /**
+ * Canonical rules.json writer: reads the shared rules.json + sha, appends `rule`
+ * (skipping a duplicate with the same action + an overlapping keyword), bumps the
+ * version, and writes it back. Uses the GITHUB_TOKEN script property (fine-grained,
+ * Contents: read & write). Returns the updated GitHub rule list on success.
+ */
+function ruleKeywords_(r) {
+  var m = (r && r.match) || {};
+  return [].concat(m.subject_contains || [], m.from_contains || [], m.snippet_contains || [])
+           .map(function (s) { return String(s).toLowerCase().trim(); }).filter(Boolean);
+}
+function sameRule_(a, b) {
+  if (!a || !b) return false;
+  if ((a.action || '') !== (b.action || '')) return false;
+  var ka = ruleKeywords_(a), kb = ruleKeywords_(b);
+  return ka.some(function (k) { return kb.indexOf(k) !== -1; });
+}
+function writeRuleToGitHub_(rule, commitMsg) {
+  var props = PropertiesService.getScriptProperties();
+  var token = props.getProperty('GITHUB_TOKEN') || props.getProperty('GITHUB_WRITE_TOKEN');
+  if (!token) return { ok: false, shared: false, noToken: true, error: 'No GITHUB_TOKEN configured.' };
+  var api = 'https://api.github.com/repos/aronhasofer-apps/se-remittance-agent/contents/rules.json';
+  var headers = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' };
+  try {
+    var getResp = UrlFetchApp.fetch(api + '?ref=main', { headers: headers, muteHttpExceptions: true });
+    if (getResp.getResponseCode() !== 200) return { ok: false, shared: false, error: 'Read rules.json HTTP ' + getResp.getResponseCode() };
+    var meta = JSON.parse(getResp.getContentText());
+    var current = JSON.parse(Utilities.newBlob(Utilities.base64Decode(meta.content)).getDataAsString());
+    if (!current || !Array.isArray(current.rules)) return { ok: false, shared: false, error: 'rules.json malformed; aborting write' };
+    var existed = current.rules.some(function (r) { return sameRule_(r, rule); });
+    if (!existed) current.rules.push(rule);
+    current.version = bumpVersion_(current.version || '1.0.0');
+    var body = {
+      message: commitMsg || ('Add rule ' + (rule.short_name || rule.id) + ' (approved in app)'),
+      content: Utilities.base64Encode(Utilities.newBlob(JSON.stringify(current, null, 2)).getBytes()),
+      sha: meta.sha,
+    };
+    var putResp = UrlFetchApp.fetch(api, { method: 'put', headers: headers, contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true });
+    var code = putResp.getResponseCode();
+    if (code >= 200 && code < 300) { try { loadRules_(); } catch (e) {} return { ok: true, shared: true, version: current.version, existed: existed, githubRules: current.rules }; }
+    return { ok: false, shared: false, error: 'GitHub write HTTP ' + code };
+  } catch (e) { return { ok: false, shared: false, error: String(e) }; }
+}
+/** Drop any LOCAL_RULES entry that now exists in the shared rules.json. */
+function reconcileLocalAgainst_(githubRules) {
+  try {
+    if (!githubRules || !githubRules.length) return;
+    var p = PropertiesService.getScriptProperties();
+    var raw = p.getProperty('LOCAL_RULES'); if (!raw) return;
+    var local = JSON.parse(raw); if (!local.length) return;
+    var kept = local.filter(function (lr) { return !githubRules.some(function (gr) { return sameRule_(gr, lr); }); });
+    if (kept.length !== local.length) p.setProperty('LOCAL_RULES', JSON.stringify(kept));
+  } catch (e) {}
+}
+/**
+ * Persist a rule from the UI: write it to the shared rules.json on GitHub; on success
+ * reconcile it out of LOCAL_RULES. If GitHub is unavailable / no token, fall back to a
+ * local override so the work is never lost.
+ */
+function persistRule_(match, action, shortName, descr) {
+  var rule = {
+    id: 'rule-' + String(shortName || 'payor').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now(),
+    description: descr || ((shortName || 'rule') + ' (approved in app by ' + getActiveUser_() + ')'),
+    match: match || {}, action: action, short_name: shortName || '',
+  };
+  var res = writeRuleToGitHub_(rule, 'Add rule ' + (shortName || action) + ' (approved in app)');
+  if (res.shared) { reconcileLocalAgainst_(res.githubRules); return { ok: true, shared: true, version: res.version, existed: res.existed }; }
+  var p = PropertiesService.getScriptProperties();
+  var list = []; try { var raw = p.getProperty('LOCAL_RULES'); if (raw) list = JSON.parse(raw); } catch (e) {}
+  list.push({ id: 'local-' + Date.now(), match: match || {}, action: action, short_name: shortName || '', created: new Date().toISOString(), createdBy: getActiveUser_() });
+  p.setProperty('LOCAL_RULES', JSON.stringify(list));
+  return { ok: true, shared: false, note: res.noToken ? 'Saved locally \u2014 no GitHub token set.' : ('Saved locally \u2014 GitHub write failed (' + (res.error || '') + ').') };
+}
+
+/**
  * Approve a payor name for an item the agent couldn't read. Writes a payor rule
  * to the shared rules.json on GitHub so every future run resolves it automatically.
  * payload: { subjectKeyword, shortName, action }
@@ -652,55 +715,8 @@ function approvePayorToGitHub(payload) {
     if (!payload || !payload.shortName || !payload.subjectKeyword) {
       return { ok: false, error: 'Need both a payor name and a subject keyword.' };
     }
-    const action = (payload.action && ['save_attachment','extract_body','skip','flag'].indexOf(payload.action) !== -1) ? payload.action : 'extract_body';
-    const token = PropertiesService.getScriptProperties().getProperty('GITHUB_WRITE_TOKEN');
-    if (!token) {
-      // No token configured yet — fall back to a local rule so the work isn't lost,
-      // and tell the caller it was saved locally rather than shared.
-      return saveLocalPayorFallback_(payload, action);
-    }
-    const owner = 'aronhasofer-apps', repo = 'se-remittance-agent', path = 'rules.json';
-    const api = 'https://api.github.com/repos/' + owner + '/' + repo + '/contents/' + path;
-    const headers = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json' };
-
-    // 1) Read current rules.json + its sha.
-    const getResp = UrlFetchApp.fetch(api + '?ref=main', { headers: headers, muteHttpExceptions: true });
-    if (getResp.getResponseCode() !== 200) {
-      return { ok: false, error: 'Could not read rules.json (HTTP ' + getResp.getResponseCode() + ').' };
-    }
-    const meta = JSON.parse(getResp.getContentText());
-    const current = JSON.parse(Utilities.newBlob(Utilities.base64Decode(meta.content)).getDataAsString());
-
-    // 2) Append the new payor rule (skip if an identical subject keyword already exists).
-    current.rules = current.rules || [];
-    const exists = current.rules.some(function (r) {
-      return r.match && r.match.subject_contains && r.match.subject_contains.indexOf(payload.subjectKeyword) !== -1;
-    });
-    if (!exists) {
-      current.rules.push({
-        id: 'payor-' + payload.shortName.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now(),
-        description: 'Payor ' + payload.shortName + ' (approved in app by ' + getActiveUser_() + ')',
-        match: { subject_contains: [payload.subjectKeyword] },
-        action: action,
-        short_name: payload.shortName,
-      });
-    }
-    // Bump a minor version tag so the Settings page reflects the change.
-    current.version = bumpVersion_(current.version || '1.0.0');
-
-    // 3) Write it back.
-    const body = {
-      message: 'Add payor ' + payload.shortName + ' (approved in app)',
-      content: Utilities.base64Encode(Utilities.newBlob(JSON.stringify(current, null, 2)).getBytes()),
-      sha: meta.sha,
-    };
-    const putResp = UrlFetchApp.fetch(api, { method: 'put', headers: headers, contentType: 'application/json', payload: JSON.stringify(body), muteHttpExceptions: true });
-    if (putResp.getResponseCode() >= 200 && putResp.getResponseCode() < 300) {
-      // Refresh the local rules cache so the next run (and Settings) see it immediately.
-      try { loadRules_(); } catch (e) {}
-      return { ok: true, shared: true, version: current.version, existed: exists };
-    }
-    return { ok: false, error: 'GitHub write failed (HTTP ' + putResp.getResponseCode() + ').' };
+    var action = (payload.action && ['save_attachment', 'extract_body', 'skip', 'flag'].indexOf(payload.action) !== -1) ? payload.action : 'extract_body';
+    return persistRule_({ subject_contains: [String(payload.subjectKeyword).trim()] }, action, String(payload.shortName).trim(), 'Payor ' + payload.shortName + ' (approved in app)');
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -993,11 +1009,11 @@ function reviewApproveRow(payload) {
       if (payload.ruleSignal === 'from') match.from_contains = [String(payload.ruleValue).trim()];
       else match.subject_contains = [String(payload.ruleValue).trim()];
       const action0 = (['save_attachment', 'extract_body', 'skip', 'flag'].indexOf(payload.action) !== -1) ? payload.action : 'save_attachment';
-      const p = PropertiesService.getScriptProperties();
-      let list = []; try { const raw = p.getProperty('LOCAL_RULES'); if (raw) list = JSON.parse(raw); } catch (e) {}
-      list.push({ id: 'local-' + Date.now(), match: match, action: action0, short_name: shortName, created: new Date().toISOString(), createdBy: getActiveUser_() });
-      p.setProperty('LOCAL_RULES', JSON.stringify(list));
-      ruleNote = 'Rule saved (' + (payload.ruleSignal === 'from' ? 'sender' : 'subject') + ' contains "' + payload.ruleValue + '"), so future mail is handled automatically.';
+      const rres = persistRule_(match, action0, shortName, shortName + ' (approved in Review by ' + getActiveUser_() + ')');
+      const sig = (payload.ruleSignal === 'from' ? 'sender' : 'subject');
+      ruleNote = rres.shared
+        ? 'Rule saved to the shared rules (' + sig + ' contains "' + payload.ruleValue + '") \u2014 every deployment now handles this automatically.'
+        : 'Rule saved locally (' + sig + ' contains "' + payload.ruleValue + '"). ' + (rres.note || '');
     }
 
     // Locate the Messages row (Message ID = col 12).
