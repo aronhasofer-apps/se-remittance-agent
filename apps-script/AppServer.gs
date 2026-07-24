@@ -268,9 +268,10 @@ function logQaAction_(kind, results) {
     const when = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
     const user = getActiveUser_();
     results.forEach(function (r) {
-      const detail = kind === 'RENAME'
-        ? (r.ok ? (r.from + '  ->  ' + r.to) : (r.id + ': ' + r.error))
-        : (r.ok ? r.name : (r.id + ': ' + r.error));
+      const isRename = (kind === 'RENAME' || kind === 'APPROVE-RENAME');
+      const detail = isRename
+        ? ((r.from || '?') + '  ->  ' + (r.to || '?') + (r.ok ? '' : '  \u2014 ' + (r.error || 'validation flagged')))
+        : (r.ok ? (r.name || '') : (r.id + ': ' + (r.error || 'failed')));
       sheet.appendRow([when, user, kind, detail, r.ok ? 'yes' : 'NO']);
     });
   } catch (e) { /* logging must never break the action */ }
@@ -570,7 +571,7 @@ try {
   const lr = m.getLastRow();
 try {
     if (lr >= 2) {
-    const count = Math.min(400, lr - 1);
+    const count = Math.min(800, lr - 1);
     const mr = m.getRange(lr - count + 1, 1, count, 18).getValues();
     for (let i = mr.length - 1; i >= 0; i--) {
       const r = mr[i];
@@ -1046,7 +1047,7 @@ function reviewApproveRow(payload) {
       saved.getRange(savedRowIdx, 6).setValue(shortName);
       if (rowIdx !== -1) { msgs.getRange(rowIdx, 9).setValue(shortName); msgs.getRange(rowIdx, 17).setValue(newName); }
       const vres = validateSavedFile_(fileId, newName);
-      logQaAction_('APPROVE-RENAME', [{ id: fileId, ok: vres.ok, from: savedVals[1], to: newName }]);
+      logQaAction_('APPROVE-RENAME', [{ id: fileId, ok: vres.ok, from: savedVals[1], to: newName, error: vres.reason }]);
       return { ok: vres.ok, mode: 'renamed', filename: newName,
                note: (vres.ok ? 'Renamed to ' + newName + ' and verified in the live folder. ' : 'Renamed, but validation flagged: ' + vres.reason + '. ') + ruleNote };
     }
