@@ -553,6 +553,7 @@ function extractFromBody_(msg, v) {
   else if (/^regeneron/.test(ruleId))                r = extractRegeneron_(text);
   else if (/^svb/.test(ruleId))                      r = extractSVB_(text);
   else if (/^ariba/.test(ruleId))                    r = extractAriba_(text);
+  else if (/^brex/.test(ruleId))                     r = extractBrex_(subject, body);
   else                                               r = extractGenericBody_(text);
   if (!r) r = extractGenericBody_(text);
 
@@ -663,6 +664,23 @@ function extractRamp_(subject, body) {
   // Strip any accidental marketing tail that slipped in via an em dash.
   payor = payor.replace(/\s+(is on the way|—.*|-\s*get paid.*)$/i, '').trim();
   return { payor: payor, amount: amt, invoices: invoices };
+}
+
+/** Brex notification: "PAYOR sent you a payment of $AMOUNT" — payor comes from the
+ *  subject line; amount/invoice from the short body ("Amount: $x", "Description: Invoice RI-..."). */
+function extractBrex_(subject, body) {
+  const text = subject + '\n' + body;
+  let payor = null, amount = null;
+
+  let m = subject.match(/^(.+?)\s+sent you a payment of\s*\$?\s*([\d,]+\.\d{2})/i);
+  if (m) { payor = m[1].trim(); amount = toNum_(m[2]); }
+
+  if (!payor) { m = body.match(/^(.+?)\s+sent you a payment of/im); if (m) payor = m[1].trim(); }
+  if (!amount) { m = body.match(/Amount:\s*\*{0,2}\s*\$?\s*([\d,]+\.\d{2})/i); if (m) amount = toNum_(m[1]); }
+  if (!amount) amount = firstAmount_(body);
+
+  if (!payor || !amount) return null;
+  return { payor: payor, amount: amount, invoices: findInvoices_(text) };
 }
 
 /** Merck — Payor Name / Payment Amount fields; three entities → Merck. */
