@@ -374,7 +374,7 @@ function classify_(msg, rules) {
     shortName: hit ? (hit.short_name || '') : '',
     noLabel: hit ? hit.no_label === true : false,
     note: note,
-    alreadyDone: threadHasMarker_(msg),
+    alreadyDone: false, // was threadHasMarker_(msg). Disabled: payors reuse identical subjects, so Gmail groups DISTINCT payments into one thread; skipping on the thread marker dropped real payments. Message-ID dedup (getLoggedIds_) already prevents true re-processing.
   };
 }
 
