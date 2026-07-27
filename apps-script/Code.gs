@@ -590,6 +590,7 @@ function extractFromBody_(msg, v) {
   else if (/^svb/.test(ruleId))                      r = extractSVB_(text);
   else if (/^ariba/.test(ruleId))                    r = extractAriba_(text);
   else if (/^brex/.test(ruleId))                     r = extractBrex_(subject, body);
+  else if (/^mineraltree/.test(ruleId))              r = extractMineralTree_(text);
   else                                               r = extractGenericBody_(text);
   if (!r) r = extractGenericBody_(text);
 
@@ -750,6 +751,26 @@ function extractCoupa_(subject, body, ruleId) {
   let payor = m[1].replace(/^.*?(?=[A-Z])/, '').trim();
   if (ruleId === 'neurocrine-body' || /neurocrine/i.test(text)) payor = 'Neurocrine';
   return { payor: payor, amount: toNum_(m[2]), currency: m[3], invoices: findInvoices_(text) };
+}
+
+/** MineralTree "Account remittance detail for your payment" (Land Therapeutics, Senti
+ *  Biosciences, and other MineralTree-paying customers). Payor sits in "Your payment from
+ *  X has been processed"; the remitted total is the ACH amount (the largest 2-decimal
+ *  figure — line items and 0.00 discount/amount-due columns are always smaller). Invoices
+ *  are RI-numbers in the detail table. */
+function extractMineralTree_(text) {
+  var pm = text.match(/payment from\s+(.+?)\s+has been processed/i);
+  var payor = pm ? pm[1].replace(/,?\s*(?:inc|llc|ltd|corp|corporation|company|co)\.?\s*$/i, '').trim() : '';
+  var amount = null;
+  var m = text.match(/ACH\s*Amount\s*(?:USD)?\s*\$?\s*([\d,]+\.\d{2})/i);
+  if (m) amount = toNum_(m[1]);
+  if (!amount) {
+    var nums = (text.match(/([\d,]+\.\d{2})/g) || []).map(toNum_).filter(function (n) { return n > 0; });
+    if (nums.length) amount = Math.max.apply(null, nums);
+  }
+  if (!amount) return null;
+  var cur = (text.match(/ACH\s*Amount\s*([A-Z]{3})/i) || [])[1] || 'USD';
+  return { payor: payor || 'MineralTree', amount: amount, currency: cur, invoices: findInvoices_(text) };
 }
 
 /** Generic remittance-advice body (Regeneron, VIR/FISPAN, SVB-style layouts). */
