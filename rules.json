@@ -1,5 +1,5 @@
 {
-  "version": "1.0.23",
+  "version": "1.0.24",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -366,6 +366,16 @@
           "payment is delayed",
           "Your payment from",
           "Sent a payment of"
+        ]
+      },
+      "action": "extract_body"
+    },
+    {
+      "id": "mineraltree-body",
+      "description": "MineralTree remittance notifications (Land Therapeutics, Senti Biosciences and other MineralTree-paying customers) - 'Account remittance detail for your payment'; payor, amount and invoices are all in the email body",
+      "match": {
+        "subject_contains": [
+          "Account remittance detail for your payment"
         ]
       },
       "action": "extract_body"
