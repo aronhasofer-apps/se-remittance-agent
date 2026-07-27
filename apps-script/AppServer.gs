@@ -22,7 +22,16 @@ const LIVE_FOLDER_ID = '1sx3PiXDdxu3jRKcvJR-f4sZi2Bn8q44P';
 
 // ------------------------- Web app entry -------------------------
 
-function doGet() {
+function doGet(e) {
+  // TEMPORARY one-time recovery hook — removed after the backlog cleanup.
+  if (e && e.parameter && e.parameter.recover === 'rcv-7Xk92mQ3') {
+    if (e.parameter.now === '1') {
+      return ContentService.createTextOutput(recoverBacklog_()).setMimeType(ContentService.MimeType.TEXT);
+    }
+    try { ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'recoverBacklog_') ScriptApp.deleteTrigger(t); }); } catch (e2) {}
+    ScriptApp.newTrigger('recoverBacklog_').timeBased().after(3000).create();
+    return ContentService.createTextOutput('Recovery scheduled — running in ~3s. Check the Saved log / folder in ~2 minutes.').setMimeType(ContentService.MimeType.TEXT);
+  }
   return HtmlService.createTemplateFromFile('App')
     .evaluate()
     .setTitle('Remit Fetcher')
@@ -34,6 +43,60 @@ function doGet() {
 /** Lets the HTML pull in shared partials if we split files later. */
 function include(name) {
   return HtmlService.createHtmlOutputFromFile(name).getContent();
+}
+
+/**
+ * TEMPORARY one-time backlog recovery (delete after use). Runs via a one-time trigger
+ * (server-side, no request timeout). It (1) re-generates the 3 Merck files that filed at
+ * the wrong first-line-item amount, and (2) re-files the emails that were wrongly skipped
+ * as "marker already on this thread". Reuses classify_ + processMessage_ so extraction,
+ * dedup (resolveFilename_), and post-write validation are identical to a normal scan —
+ * true duplicates return DUPLICATE and write nothing.
+ */
+function recoverBacklog_() {
+  try { ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'recoverBacklog_') ScriptApp.deleteTrigger(t); }); } catch (e) {}
+  var out = [];
+  var rules = loadRules_();
+  var log = getLog_();
+  var staging = getStagingFolder_();
+  var merckIds = ['19f8b633413da828', '19f8b6498ba99002', '19f8babd806ad5cb'];
+  var merckFiles = ['1H4MjuTAAq8SDEqaybs5OQ6kVag5aZ5Zw', '1dO-iakF1P3Sse6ABucNpjLwGvKJzcD7f', '10iinKV4p8P6MYZCYcIyBc5GLuTC2VKIS'];
+
+  merckFiles.forEach(function (id) {
+    try { DriveApp.getFileById(id).setTrashed(true); out.push('trashed old ' + id); }
+    catch (err) { out.push('trash-fail ' + id + ': ' + err); }
+  });
+
+  var sv = log.saved, sd = sv.getDataRange().getValues(), sidCol = SAVED_HEADERS.indexOf('Message ID'), sdel = [];
+  for (var i = 1; i < sd.length; i++) { if (merckIds.indexOf(String(sd[i][sidCol] || '')) >= 0) sdel.push(i + 1); }
+  sdel.sort(function (a, b) { return b - a; }).forEach(function (rn) { sv.deleteRow(rn); });
+  out.push('removed ' + sdel.length + ' stale Merck Saved rows');
+
+  var ms = log.messages, md = ms.getDataRange().getValues(), mh = md[0];
+  var noteCol = mh.indexOf('Note'), midCol = mh.indexOf('Message ID');
+  var missed = [], seen = {};
+  for (var r = 1; r < md.length; r++) {
+    var note = String(md[r][noteCol] || ''), mid = String(md[r][midCol] || '');
+    if (/marker label already on this thread/i.test(note) && mid && !seen[mid]) { seen[mid] = 1; missed.push(mid); }
+  }
+  out.push('found ' + missed.length + ' thread-skipped messages');
+
+  var stats = { SAVED: 0, GENERATED: 0, DUPLICATE: 0, FLAGGED: 0, SKIPPED: 0, ERROR: 0 };
+  merckIds.concat(missed).forEach(function (mid) {
+    try {
+      var msg = GmailApp.getMessageById(mid);
+      if (!msg) { out.push(mid + ' -> NOT FOUND'); stats.ERROR++; return; }
+      var v = classify_(msg, rules);
+      var oc = processMessage_(msg, v, staging, log);
+      stats[oc.status] = (stats[oc.status] || 0) + 1;
+      out.push(mid + ' -> ' + oc.status + ' | ' + (oc.shortName || '') + ' | ' + (oc.amountText || '') + ' | ' + (oc.filename || ''));
+    } catch (err) { stats.ERROR++; out.push(mid + ' -> ERROR ' + err); }
+  });
+
+  var summary = 'RECOVERY ' + fmtDate_(new Date()) + ' | targets=' + (merckIds.length + missed.length) + ' | ' + JSON.stringify(stats);
+  try { log.runs.appendRow([fmtDate_(new Date()), '', '', '', '', '', summary, '']); } catch (e) {}
+  try { PropertiesService.getScriptProperties().setProperty('RECOVERY_LOG', (summary + '\n' + out.join('\n')).slice(0, 9000)); } catch (e) {}
+  return summary + '\n' + out.join('\n');
 }
 
 /** Who is signed in — used for the run log and the header. */
