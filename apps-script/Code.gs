@@ -725,9 +725,13 @@ function extractMerck_(text) {
   let amount = null;
   let m = text.match(/Payment Amount[:\s]*\$?\s*([\d,]+\.\d{2})/i);
   if (m) amount = toNum_(m[1]);
+  // The columnar "PAYMENT REMITTANCE DETAIL" body has no "Payment Amount" label; the
+  // remitted total sits in the "Payment#" row (and is the largest USD figure) — never
+  // the first invoice line item, which the old fallback wrongly grabbed.
+  if (!amount) { m = text.match(/Payment#[\s\S]{0,150}?([\d,]+\.\d{2})\s*USD/i); if (m) amount = toNum_(m[1]); }
   if (!amount) {
-    m = text.match(/([\d,]+\.\d{2})\s*USD/);
-    if (m) amount = toNum_(m[1]);
+    var nums = (text.match(/([\d,]+\.\d{2})\s*USD/gi) || []).map(function(s){ return toNum_(s.replace(/\s*USD/i, '')); });
+    if (nums.length) amount = Math.max.apply(null, nums);
   }
   if (!amount) return null;
   return {
