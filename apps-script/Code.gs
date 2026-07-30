@@ -635,18 +635,22 @@ function extractFromBody_(msg, v) {
 /** BILL.com — the four body formats. */
 function extractBill_(subject, body) {
   const text = subject + '\n' + body;
-  // "Ansa Biotechnologies, Inc. Sent a payment of 1772.25" (no $)
-  let m = body.match(/([^\r\n]{2,90}?)\s+Sent a payment of\s+\$?([\d,]+\.\d{2})/i);
-  if (m) return { payor: m[1], amount: toNum_(m[2]), invoices: findInvoices_(text) };
-  // "Vedana Therapeutics, Inc. initiated a payment of $584977.80"
-  m = body.match(/([^\r\n]{2,90}?)\s+initiated a payment of\s+\$([\d,]+\.\d{2})/i);
-  if (m) return { payor: m[1], amount: toNum_(m[2]), invoices: findInvoices_(text) };
-  // "Your payment from X will be deposited today" + amount in body
-  m = subject.match(/payment from\s+(.+?)\s+(?:will be deposited|is on the way|is delayed)/i);
+
+  // SUBJECT-FIRST for "Your payment from X will be deposited today" — payor is
+  // unambiguous in the subject. Check before touching body, which may contain
+  // threaded HTML from prior emails with different customers.
+  let m = subject.match(/payment from\s+(.+?)\s+(?:will be deposited|is on the way|is delayed)/i);
   if (m) {
     const amt = firstAmount_(body);
     if (amt) return { payor: m[1], amount: amt, invoices: findInvoices_(text) };
   }
+
+  // "Ansa Biotechnologies, Inc. Sent a payment of 1772.25" (no $)
+  m = body.match(/([^\r\n]{2,90}?)\s+Sent a payment of\s+\$?([\d,]+\.\d{2})/i);
+  if (m) return { payor: m[1], amount: toNum_(m[2]), invoices: findInvoices_(text) };
+  // "Vedana Therapeutics, Inc. initiated a payment of $584977.80"
+  m = body.match(/([^\r\n]{2,90}?)\s+initiated a payment of\s+\$([\d,]+\.\d{2})/i);
+  if (m) return { payor: m[1], amount: toNum_(m[2]), invoices: findInvoices_(text) };
   // "X sent you a payment arriving Jul 22"
   m = subject.match(/^(.+?)\s+sent you a payment arriving/i);
   if (m) {
@@ -668,19 +672,23 @@ function extractRamp_(subject, body) {
   const text = subject + '\n' + body;
   let payor = null, invoices = [];
 
-  // Body H1: "Arda Therapeutics, Inc. sent payment for RI-0000154773"
-  let m = body.match(/^(.+?)\s+sent payment for\s+((?:RI|CN)-\d+)/im);
-  if (m) { payor = m[1].trim(); invoices = [m[2].toUpperCase()]; }
+  // P3 FIRST: Subject "Payment received: RI-x from Y" — payor is unambiguous in the
+  // subject line. Check this before touching the body, because msg.getBody() returns
+  // threaded HTML which can contain earlier messages from different customers, causing
+  // P1 below to pick up the wrong company name.
+  let m = subject.match(/Payment received:\s*((?:RI|CN)-\d+)\s+from\s+(.+)$/i);
+  if (m) { invoices = [m[1].toUpperCase()]; payor = m[2].trim(); }
+
+  if (!payor) {
+    // Body H1: "Arda Therapeutics, Inc. sent payment for RI-0000154773"
+    m = body.match(/^(.+?)\s+sent payment for\s+((?:RI|CN)-\d+)/im);
+    if (m) { payor = m[1].trim(); invoices = [m[2].toUpperCase()]; }
+  }
 
   // Fallbacks that still avoid the marketing subject tail:
   if (!payor) {
     m = body.match(/Someone at\s+(.+?)\s+is attempting to complete a payment/i);
     if (m) payor = m[1].trim();
-  }
-  if (!payor) {
-    // Subject "Payment received: RI-x from Y" — Y is clean here (no marketing tail)
-    m = subject.match(/Payment received:\s*((?:RI|CN)-\d+)\s+from\s+(.+)$/i);
-    if (m) { if (!invoices.length) invoices = [m[1].toUpperCase()]; payor = m[2].trim(); }
   }
 
   // Subject "Payment from X is on the way / will be deposited" - capture X, drop the tail.
