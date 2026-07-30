@@ -22,15 +22,7 @@ const LIVE_FOLDER_ID = '1sx3PiXDdxu3jRKcvJR-f4sZi2Bn8q44P';
 
 // ------------------------- Web app entry -------------------------
 
-function doGet(e) {
-  if (e && e.parameter && e.parameter.recover === 'rcv-8Yz41mN7') {
-    if (e.parameter.now === '1') {
-      return ContentService.createTextOutput(recoverMisfiledNames_()).setMimeType(ContentService.MimeType.TEXT);
-    }
-    try { ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction()==='recoverMisfiledNames_') ScriptApp.deleteTrigger(t); }); } catch(e2) {}
-    ScriptApp.newTrigger('recoverMisfiledNames_').timeBased().after(3000).create();
-    return ContentService.createTextOutput('Recovery scheduled.').setMimeType(ContentService.MimeType.TEXT);
-  }
+function doGet() {
   return HtmlService.createTemplateFromFile('App')
     .evaluate()
     .setTitle('Remit Fetcher')
@@ -42,85 +34,6 @@ function doGet(e) {
 /** Lets the HTML pull in shared partials if we split files later. */
 function include(name) {
   return HtmlService.createHtmlOutputFromFile(name).getContent();
-}
-
-/**
- * TEMPORARY one-time recovery — remove after use.
- * 1. Trashes 7 misfiled files (Collage/Deerfield misattributions + Rainwater).
- * 2. Removes their stale Saved rows so the correct files can re-file cleanly.
- * 3. Re-processes the Arda RI-0000154959 confirmed email (the only one whose
- *    "Payment received" email is already in the inbox).
- * 4. Ansa ×4, Azalea, Retro — deposit emails arrive Jul 31; V45 will auto-file
- *    those correctly once the "will be deposited today" / "Payment received"
- *    emails land. Their stale log entries are cleared here so dedup won't block them.
- * 5. Adds Rainwater Charitable Foundation to SHORT_NAMES — no rebuild needed,
- *    rules are picked up on next scan.
- */
-function recoverMisfiledNames_() {
-  try { ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction()==='recoverMisfiledNames_') ScriptApp.deleteTrigger(t); }); } catch(e) {}
-
-  var BAD_FILES = [
-    '1whadDqYSMUnYrNSuTKUYbDL2U83ar3Sy', // $705.00 Collage Bioscience (= Arda RI-0000154959)
-    '1BaJMp19caBRVy4mmUDz134KLCnuouxO4', // $500.00 Collage Bioscience (= Retro CN-0000001351)
-    '1R7MRLlgsQVnHBgapeBIyswhIPj-4dezf', // $1,208.06 Deerfield Discovery (= Azalea RI-0000155812)
-    '1ihoSSUOfbvtNdSSAlQa9wO1yk0Fq8Xyu', // $195.17 Deerfield Discovery (= Ansa RI-0000155331)
-    '1Y3CFrPRzv6wy58iO6GmavzVMfT730hGP', // $2,650.74 Deerfield Discovery (= Ansa RI-0000155440)
-    '1FjrtTaf9OFqxGsA9miuLrKQUf8abRFH3', // $585.49 Deerfield Discovery (= Ansa RI-0000155330)
-    '1pyel1LURdoX5JcLZSsEo5kcEIC4e9BDp', // $396.38 Deerfield Discovery (= Ansa RI-0000155617)
-    '1WFRZ1ntgJi23DO2ZtjKbGmM0N5xt1POp', // $4,238.60 RainWater (= Rainwater Charitable Foundation)
-  ];
-
-  // Stale invoices to purge from Saved log so correct files can re-file
-  var STALE_INVOICES = [
-    'RI-0000154959', // Arda — re-process below
-    'CN-0000001351', // Retro — wait for Payment received email
-    'RI-0000155812', // Azalea — wait for deposited today email
-    'RI-0000155331', // Ansa
-    'RI-0000155440', // Ansa
-    'RI-0000155330', // Ansa
-    'RI-0000155617', // Ansa
-  ];
-  // Rainwater's invoice is not in the stale list — it wasn't in Saved log under wrong name
-  // (it was filed via save_attachment so the correct invoice number should be fine)
-
-  var out = [];
-
-  // 1. Trash bad files
-  BAD_FILES.forEach(function(id) {
-    try { DriveApp.getFileById(id).setTrashed(true); out.push('trashed ' + id); }
-    catch(e) { out.push('trash-fail ' + id + ': ' + e); }
-  });
-
-  // 2. Remove stale Saved rows by invoice number
-  var log = getLog_();
-  var sv = log.saved;
-  var sd = sv.getDataRange().getValues();
-  var invCol = SAVED_HEADERS.indexOf('Invoices'); // col 4
-  var delRows = [];
-  for (var i = 1; i < sd.length; i++) {
-    var rowInvs = String(sd[i][invCol] || '');
-    for (var j = 0; j < STALE_INVOICES.length; j++) {
-      if (rowInvs.indexOf(STALE_INVOICES[j]) >= 0) { delRows.push(i + 1); break; }
-    }
-  }
-  delRows.sort(function(a,b){return b-a;}).forEach(function(rn){ sv.deleteRow(rn); });
-  out.push('removed ' + delRows.length + ' stale Saved rows');
-
-  // 3. Re-process Arda RI-0000154959 confirmed email
-  var rules = loadRules_();
-  var staging = getStagingFolder_();
-  var ardaMsgId = '19fa3a953d411c67'; // "Payment received: RI-0000154959 from Arda Therapeutics"
-  try {
-    var msg = GmailApp.getMessageById(ardaMsgId);
-    var v = classify_(msg, rules);
-    var oc = processMessage_(msg, v, staging, log);
-    out.push('Arda re-process: ' + oc.status + ' | ' + (oc.filename || '') + ' | ' + (oc.note || ''));
-  } catch(e) { out.push('Arda re-process error: ' + e); }
-
-  var summary = 'RECOVERY ' + fmtDate_(new Date()) + ' | ' + out.join(' | ');
-  try { log.runs.appendRow([fmtDate_(new Date()),'','','','','',summary,'']); } catch(e) {}
-  try { PropertiesService.getScriptProperties().setProperty('RECOVERY_LOG2', summary.slice(0,9000)); } catch(e) {}
-  return summary;
 }
 
 /** Who is signed in — used for the run log and the header. */
