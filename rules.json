@@ -1,5 +1,5 @@
 {
-  "version": "1.0.26",
+  "version": "1.0.27",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -331,6 +331,16 @@
         ]
       },
       "action": "skip"
+    },
+    {
+      "id": "ramp-batch",
+      "description": "Ramp batch payment notification \u2014 'Payment initiated for N bills to Y from X'; payor and amount are in subject/body",
+      "match": {
+        "subject_contains": [
+          "Payment initiated for"
+        ]
+      },
+      "action": "extract_body"
     },
     {
       "id": "ramp-received",
