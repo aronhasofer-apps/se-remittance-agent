@@ -1061,6 +1061,7 @@ const SHORT_NAMES = [
   [/glaxosmithkline|(^|\W)gsk(\W|$)/i, 'GSK'],
   [/bristol[- ]?myers|(^|\W)bms(\W|$)/i, 'BMS'],
   [/mrl san francisco|merck sharp|merck research|(^|\W)merck(\W|$)/i, 'Merck'],
+  [/rainwater/i, 'Rainwater Charitable Foundation'],
   [/deerfield/i, 'Deerfield'],
   [/gilead/i, 'Gilead Sciences'],
   [/takeda/i, 'Takeda'],
