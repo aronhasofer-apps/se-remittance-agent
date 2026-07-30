@@ -1,5 +1,5 @@
 {
-  "version": "1.0.25",
+  "version": "1.0.26",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -320,13 +320,24 @@
       "short_name": "extract_from_subject"
     },
     {
-      "id": "ramp-received",
-      "description": "Ramp payment received/on the way - extract from body",
+      "id": "ramp-advance-skip",
+      "description": "Ramp advance payment notifications ('is on the way', 'sent payment for', '[Instant eligible]') \u2014 advance notice only, not a confirmed payment; the confirmed 'Payment received' email follows separately",
       "match": {
         "subject_contains": [
-          "Payment received:",
           "is on the way",
-          "sent payment for"
+          "sent payment for",
+          "get paid instantly",
+          "get paid faster"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "ramp-received",
+      "description": "Ramp payment confirmed delivery (Payment received: RI-x from Y) \u2014 extract from body. Advance notices ('is on the way', 'sent payment for') are skipped separately.",
+      "match": {
+        "subject_contains": [
+          "Payment received:"
         ]
       },
       "action": "extract_body",
