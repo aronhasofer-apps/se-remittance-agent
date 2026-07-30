@@ -679,6 +679,12 @@ function extractRamp_(subject, body) {
   let m = subject.match(/Payment received:\s*((?:RI|CN)-\d+)\s+from\s+(.+)$/i);
   if (m) { invoices = [m[1].toUpperCase()]; payor = m[2].trim(); }
 
+  // P3b: Subject "Payment initiated for N bills to Y from X" (batch)
+  if (!payor) {
+    m = subject.match(/Payment initiated for .+? from\s+(.+)$/i);
+    if (m) payor = m[1].trim();
+  }
+
   if (!payor) {
     // Body H1: "Arda Therapeutics, Inc. sent payment for RI-0000154773"
     m = body.match(/^(.+?)\s+sent payment for\s+((?:RI|CN)-\d+)/im);
@@ -699,7 +705,7 @@ function extractRamp_(subject, body) {
 
   // Amount: prefer the labeled "Payment amount" field; never the marketing "1.0% fee" line.
   let amt = null;
-  m = body.match(/Payment amount\s*\n?\s*\$([\d,]+\.\d{2})/i);
+  m = body.match(/Payment amount[^\n]*\n?\s*\$?([\d,]+\.\d{2})/i);
   if (m) amt = toNum_(m[1]);
   if (!amt) { m = body.match(/Invoice total\s*\n?\s*\$([\d,]+\.\d{2})/i); if (m) amt = toNum_(m[1]); }
   if (!amt) amt = firstAmount_(body);
