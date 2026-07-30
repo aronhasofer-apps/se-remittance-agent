@@ -1,5 +1,5 @@
 {
-  "version": "1.0.24",
+  "version": "1.0.25",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -59,11 +59,12 @@
     },
     {
       "id": "bill-invoice-skip",
-      "description": "BILL.com invoice received/created notifications - skip",
+      "description": "BILL.com invoice received/created notifications - skip | advance payment notices ('sent you a payment arriving')",
       "match": {
         "subject_contains": [
           "received your invoice",
-          "created a new bill"
+          "created a new bill",
+          "sent you a payment arriving"
         ]
       },
       "action": "skip"
@@ -358,10 +359,9 @@
     },
     {
       "id": "bill-arriving",
-      "description": "BILL.com payment arriving/deposited/delayed - extract from body",
+      "description": "BILL.com payment arriving/deposited/delayed - extract from body (removed 'sent you a payment arriving' \u2014 advance notice only, duplicates the later 'will be deposited today' email)",
       "match": {
         "subject_contains": [
-          "sent you a payment arriving",
           "will be deposited today",
           "payment is delayed",
           "Your payment from",
