@@ -555,7 +555,16 @@ function extractFromBody_(msg, v) {
     let _h = ''; try { _h = stripHtml_(msg.getBody() || ''); } catch (e) {}
     // If the plain body is missing or thinner than the HTML text, use the HTML text
     // (it usually carries the full invoice table that the plain part omits).
-    if (!body || body.length < 40 || (_h && _h.length > body.length + 40)) body = _h || body;
+    // Only fall back to HTML body if plain body is truly absent/tiny AND this isn't a
+    // Ramp/BILL email (those always have clean plain text; their HTML body is threaded
+    // and contains prior messages from other customers, causing payor contamination).
+    const isRampOrBill = /^(ramp|bill)/.test(v.ruleObj ? v.ruleObj.id : '');
+    if (!isRampOrBill && (!body || body.length < 40 || (_h && _h.length > body.length + 40))) body = _h || body;
+    // For Ramp/BILL: if plain body is empty, still use HTML but strip everything after
+    // the first blockquote/quoted-reply boundary to avoid threaded content.
+    if (isRampOrBill && (!body || body.length < 40) && _h) {
+      body = _h.replace(/\n\s*[-]{3,}.*$/ms, '').trim();
+    }
   }
   let htmlText = '';
   try { htmlText = stripHtml_(msg.getBody() || ''); } catch (e) {}
