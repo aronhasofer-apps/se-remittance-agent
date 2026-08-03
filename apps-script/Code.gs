@@ -644,21 +644,19 @@ function extractFromBody_(msg, v) {
     return { ok: false, reason: 'Payor short name could not be resolved (avoid bad filename) - needs human review' };
   }
 
-  // Mismatch guard: if the extracted payor is a well-known SHORT_NAMES entity but the
-  // subject clearly names a DIFFERENT entity, the extraction is almost certainly wrong
-  // (threaded body contamination or a stale fallback). Flag rather than file silently.
+  // Mismatch guard: if the extracted payor is a well-known SHORT_NAMES entity but their
+  // name doesn't appear anywhere in the subject, the extraction is almost certainly wrong
+  // (threaded body contamination). Flag rather than file silently.
   const snLower = sn.toLowerCase();
   const subjectLower = subject.toLowerCase();
   const knownPayors = SHORT_NAMES.map(function(e){ return e[1].toLowerCase(); });
   if (knownPayors.indexOf(snLower) >= 0) {
-    // Subject should contain the payor name (or part of it) if extraction was correct.
-    // If it contains a DIFFERENT well-known payor's name, that's a mismatch.
-    const payorInSubject = sn.split(' ').some(function(w){ return w.length > 3 && subjectLower.indexOf(w.toLowerCase()) >= 0; });
+    // Check if any meaningful word of the payor name appears in the subject.
+    const payorInSubject = sn.split(' ').some(function(w){
+      return w.length > 3 && subjectLower.indexOf(w.toLowerCase()) >= 0;
+    });
     if (!payorInSubject) {
-      const subjectPayor = knownPayors.find(function(p){ return p !== snLower && subjectLower.indexOf(p.split(' ')[0]) >= 0; });
-      if (subjectPayor) {
-        return { ok: false, reason: 'Payor mismatch: extracted "' + sn + '" but subject suggests "' + subjectPayor + '" — needs human review' };
-      }
+      return { ok: false, reason: 'Payor mismatch: extracted "' + sn + '" but "' + sn + '" does not appear in the subject — likely threading contamination, needs human review' };
     }
   }
 
@@ -1130,6 +1128,7 @@ const SHORT_NAMES = [
   [/glaxosmithkline|(^|\W)gsk(\W|$)/i, 'GSK'],
   [/bristol[- ]?myers|(^|\W)bms(\W|$)/i, 'BMS'],
   [/mrl san francisco|merck sharp|merck research|(^|\W)merck(\W|$)/i, 'Merck'],
+  [/insitro/i, 'Insitro'],
   [/rainwater/i, 'Rainwater Charitable Foundation'],
   [/deerfield/i, 'Deerfield'],
   [/gilead/i, 'Gilead Sciences'],
@@ -1457,12 +1456,22 @@ function getLoggedIds_(sheet) {
   if (last >= 2) {
     // Col 12 = Message ID, Col 10 = Outcome
     const rows = sheet.getRange(2, 10, last - 1, 3).getValues();
+    // Count how many times each message has been flagged
+    const flagCount = {};
     rows.forEach(function (r) {
       const outcome = String(r[0] || '').toUpperCase();
       const msgId   = String(r[2] || '');
-      // Don't lock out FLAGGED emails — they should be retried when rules/extractors improve.
-      // SAVED, GENERATED, SKIPPED, DUPLICATE, ALREADY PROCESSED are all final.
-      if (msgId && outcome !== 'FLAGGED') seen.add(msgId);
+      if (!msgId) return;
+      if (outcome === 'FLAGGED') {
+        flagCount[msgId] = (flagCount[msgId] || 0) + 1;
+      } else {
+        // Any final outcome (SAVED, GENERATED, SKIPPED, DUPLICATE) = done
+        seen.add(msgId);
+      }
+    });
+    // Allow retry only if flagged fewer than 3 times; after that, treat as done
+    Object.keys(flagCount).forEach(function(id) {
+      if (flagCount[id] >= 3) seen.add(id);
     });
   }
   return seen;
