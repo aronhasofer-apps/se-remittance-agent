@@ -1,5 +1,5 @@
 {
-  "version": "1.0.27",
+  "version": "1.0.28",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -423,6 +423,37 @@
         ],
         "from_contains": [
           "coupahost.com"
+        ]
+      },
+      "action": "extract_body"
+    },
+    {
+      "id": "insitro-attachment",
+      "description": "Insitro ACH Remittance Advice \u2014 PDF attachment, payor extracted from subject",
+      "match": {
+        "subject_contains": [
+          "Insitro ACH Remittance Advice"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Insitro"
+    },
+    {
+      "id": "ariba-scheduled-skip",
+      "description": "SAP Ariba/Business Network scheduled payment notice \u2014 advance notice only, payment not sent yet; skip",
+      "match": {
+        "subject_contains": [
+          "Notice of new scheduled payment"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "zip-payment-arrived",
+      "description": "Zip payment confirmation \u2014 'Payment should have arrived: X paid you $Y'; payor and amount in subject",
+      "match": {
+        "subject_contains": [
+          "Payment should have arrived:"
         ]
       },
       "action": "extract_body"
