@@ -402,11 +402,15 @@ function reviewData() {
       // Only genuinely stuck items (flagged, or missing a payor the agent should have) go to attention.
       const isStuck = (outcome === 'FLAGGED') || (payor === '' && outcome !== 'SKIPPED' && outcome !== 'ALREADY PROCESSED');
       if (isStuck) {
-        item.needsName = (payor === '');   // show a name field when we couldn't read the payor
-        // Pre-suggest a short name so the reviewer confirms rather than types blind.
+        item.needsName = (payor === '');
         item.suggestedName = payor || suggestName_(item.subject, r[3], payorRaw);
         if (item.needsName) counts.needsName++;
-        needsAttention.push(item);
+        // Deduplicate by message ID — only keep the most recent entry (we iterate newest-first).
+        if (item.id && needsAttention.some(function(e){ return e.id === item.id; })) {
+          // already have a newer entry for this message, skip
+        } else {
+          needsAttention.push(item);
+        }
       } else {
         // Only surface handled items from the most recent run; older ones are in Run Log.
         const loggedAtMs = (r[0] instanceof Date) ? r[0].getTime() : 0;
