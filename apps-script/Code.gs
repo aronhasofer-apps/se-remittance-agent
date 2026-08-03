@@ -631,6 +631,25 @@ function extractFromBody_(msg, v) {
   if (!sn || looksLikePayorJunk_(sn)) {
     return { ok: false, reason: 'Payor short name could not be resolved (avoid bad filename) - needs human review' };
   }
+
+  // Mismatch guard: if the extracted payor is a well-known SHORT_NAMES entity but the
+  // subject clearly names a DIFFERENT entity, the extraction is almost certainly wrong
+  // (threaded body contamination or a stale fallback). Flag rather than file silently.
+  const snLower = sn.toLowerCase();
+  const subjectLower = subject.toLowerCase();
+  const knownPayors = SHORT_NAMES.map(function(e){ return e[1].toLowerCase(); });
+  if (knownPayors.indexOf(snLower) >= 0) {
+    // Subject should contain the payor name (or part of it) if extraction was correct.
+    // If it contains a DIFFERENT well-known payor's name, that's a mismatch.
+    const payorInSubject = sn.split(' ').some(function(w){ return w.length > 3 && subjectLower.indexOf(w.toLowerCase()) >= 0; });
+    if (!payorInSubject) {
+      const subjectPayor = knownPayors.find(function(p){ return p !== snLower && subjectLower.indexOf(p.split(' ')[0]) >= 0; });
+      if (subjectPayor) {
+        return { ok: false, reason: 'Payor mismatch: extracted "' + sn + '" but subject suggests "' + subjectPayor + '" — needs human review' };
+      }
+    }
+  }
+
   return {
     ok: true,
     payor: payor,
