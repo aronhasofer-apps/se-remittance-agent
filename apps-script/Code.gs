@@ -558,7 +558,9 @@ function extractFromBody_(msg, v) {
     // Only fall back to HTML body if plain body is truly absent/tiny AND this isn't a
     // Ramp/BILL email (those always have clean plain text; their HTML body is threaded
     // and contains prior messages from other customers, causing payor contamination).
-    const isRampOrBill = /^(ramp|bill)/.test(v.ruleObj ? v.ruleObj.id : '');
+    const isRampOrBill = /^(ramp|bill)/.test(v.ruleObj ? v.ruleObj.id : '') ||
+                         /^(ramp|bill)/.test(v.action || '') ||
+                         /^(ramp|bill)/.test(v.ruleName || '');
     if (!isRampOrBill && (!body || body.length < 40 || (_h && _h.length > body.length + 40))) body = _h || body;
     // For Ramp/BILL: if plain body is empty, still use HTML but strip everything after
     // the first blockquote/quoted-reply boundary to avoid threaded content.
@@ -1443,8 +1445,14 @@ function getLoggedIds_(sheet) {
   const seen = new Set();
   const last = sheet.getLastRow();
   if (last >= 2) {
-    sheet.getRange(2, 12, last - 1, 1).getValues().forEach(function (r) {
-      if (r[0]) seen.add(String(r[0]));
+    // Col 12 = Message ID, Col 10 = Outcome
+    const rows = sheet.getRange(2, 10, last - 1, 3).getValues();
+    rows.forEach(function (r) {
+      const outcome = String(r[0] || '').toUpperCase();
+      const msgId   = String(r[2] || '');
+      // Don't lock out FLAGGED emails — they should be retried when rules/extractors improve.
+      // SAVED, GENERATED, SKIPPED, DUPLICATE, ALREADY PROCESSED are all final.
+      if (msgId && outcome !== 'FLAGGED') seen.add(msgId);
     });
   }
   return seen;
