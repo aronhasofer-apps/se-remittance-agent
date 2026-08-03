@@ -1134,8 +1134,11 @@ function reviewApproveRow(payload) {
     const action = (['save_attachment', 'extract_body'].indexOf(payload.action) !== -1)
       ? payload.action
       : (pickAttachment_(msg, true) ? 'save_attachment' : 'extract_body');
+    // Pass the original ruleId hint so extractFromBody_ applies the right body-handling
+    // (e.g. isRampOrBill check). Fall back to deriving from the action string.
+    const ruleIdHint = payload.ruleId || (action === 'save_attachment' ? 'save-attachment' : 'approved-in-review');
     const verdict = { action: action, verdict: action.replace('_', ' ').toUpperCase(),
-                      ruleName: 'approved-in-review', ruleObj: { id: 'approved-in-review' },
+                      ruleName: ruleIdHint, ruleObj: { id: ruleIdHint },
                       shortName: shortName, note: 'Approved in Review', alreadyDone: false };
     const outcome = processMessage_(msg, verdict, getStagingFolder_(), log);
     if (rowIdx !== -1) {
