@@ -1,5 +1,5 @@
 {
-  "version": "1.0.29",
+  "version": "1.0.30",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -68,6 +68,20 @@
         ]
       },
       "action": "skip"
+    },
+    {
+      "id": "reckitt",
+      "description": "Reckitt payment advice \u2014 PTP_Remittance@reckitt.com, subject 'Payment Advice Note from DD/MM/YYYY', PDF attachment",
+      "match": {
+        "from_contains": [
+          "reckitt.com"
+        ],
+        "subject_contains": [
+          "Payment Advice Note"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Reckitt"
     },
     {
       "id": "gsk-statement-skip",
