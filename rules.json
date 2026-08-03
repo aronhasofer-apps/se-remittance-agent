@@ -1,5 +1,5 @@
 {
-  "version": "1.0.28",
+  "version": "1.0.29",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -429,13 +429,13 @@
     },
     {
       "id": "insitro-attachment",
-      "description": "Insitro ACH Remittance Advice \u2014 PDF attachment, payor extracted from subject",
+      "description": "Insitro ACH Remittance Advice \u2014 payor always Insitro; amount extracted from PDF attachment via body/REST path",
       "match": {
         "subject_contains": [
           "Insitro ACH Remittance Advice"
         ]
       },
-      "action": "save_attachment",
+      "action": "extract_body",
       "short_name": "Insitro"
     },
     {
