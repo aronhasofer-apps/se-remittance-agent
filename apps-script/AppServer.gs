@@ -1057,7 +1057,11 @@ function suggestName_(subject, from, rawPayor) {
  */
 function reviewApproveRow(payload) {
   try {
-    if (!payload || !payload.messageId || !payload.shortName) {
+    if (!payload || !payload.messageId) {
+      return { ok: false, error: 'Need a message ID.' };
+    }
+    // skip and flag don't need a short name
+    if (!payload.shortName && payload.action !== 'skip' && payload.action !== 'flag') {
       return { ok: false, error: 'Need a message and a short name.' };
     }
     const shortName = String(payload.shortName).trim();
