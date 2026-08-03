@@ -1108,10 +1108,18 @@ function reviewApproveRow(payload) {
 
     // If the reviewer chose skip/flag, record the decision — don't write a file.
     if (payload.action === 'skip' || payload.action === 'flag') {
-      if (rowIdx !== -1) {
-        msgs.getRange(rowIdx, 9).setValue(shortName || '');
-        msgs.getRange(rowIdx, 10).setValue(payload.action === 'skip' ? 'SKIPPED' : 'FLAGGED');
-        msgs.getRange(rowIdx, 11).setValue('Set to ' + payload.action + ' in Review');
+      // Update ALL rows for this message ID so getLoggedIds_ sees the final outcome
+      // and doesn't retry it on the next scan.
+      if (last >= 2) {
+        const allIds = msgs.getRange(2, 12, last - 1, 1).getValues();
+        for (var ri = 0; ri < allIds.length; ri++) {
+          if (String(allIds[ri][0]) === String(payload.messageId)) {
+            var row = ri + 2;
+            msgs.getRange(row, 9).setValue(shortName || '');
+            msgs.getRange(row, 10).setValue(payload.action === 'skip' ? 'SKIPPED' : 'FLAGGED');
+            msgs.getRange(row, 11).setValue('Set to ' + payload.action + ' in Review');
+          }
+        }
       }
       return { ok: true, mode: payload.action, note: 'Marked as ' + payload.action + '. ' + ruleNote };
     }
