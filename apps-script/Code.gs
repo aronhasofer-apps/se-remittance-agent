@@ -534,7 +534,17 @@ function runExtraction_(msg, v) {
   const att = pickAttachment_(msg, false);
 
   if (v.action === 'save_attachment' && att) {
-    return extractFromAttachment_(msg, v, att);
+    const attResult = extractFromAttachment_(msg, v, att);
+    if (attResult.ok) return attResult;
+    // Attachment found but couldn't be read (PDF unreadable, Drive API issue, etc.)
+    // Fall back to body extraction — payor may still be in subject/body.
+    const bodyResult = extractFromBody_(msg, v);
+    if (bodyResult.ok) {
+      bodyResult.note = ((bodyResult.note || '') + ' PDF unreadable — extracted from body instead').trim();
+      return bodyResult;
+    }
+    // Both failed — return the original attachment error so the note is informative.
+    return attResult;
   }
   // extract_body — or an attachment rule whose attachment never arrived
   // (e.g. Regeneron sends the advice in the body): fall back to body.
