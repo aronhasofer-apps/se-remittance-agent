@@ -599,6 +599,7 @@ function extractFromBody_(msg, v) {
   else if (/^svb/.test(ruleId))                      r = extractSVB_(text);
   else if (/^ariba/.test(ruleId))                    r = extractAriba_(text);
   else if (/^brex/.test(ruleId))                     r = extractBrex_(subject, body);
+  else if (/^zip-payment/.test(ruleId))              r = extractZip_(subject, body);
   else if (/^mineraltree/.test(ruleId))              r = extractMineralTree_(text);
   else                                               r = extractGenericBody_(text);
   if (!r) r = extractGenericBody_(text);
@@ -774,6 +775,20 @@ function extractCoupa_(subject, body, ruleId) {
   let payor = m[1].replace(/^.*?(?=[A-Z])/, '').trim();
   if (ruleId === 'neurocrine-body' || /neurocrine/i.test(text)) payor = 'Neurocrine';
   return { payor: payor, amount: toNum_(m[2]), currency: m[3], invoices: findInvoices_(text) };
+}
+
+/** Zip "Payment should have arrived: X paid you USD Y" — payor and amount are in the
+ *  subject line. Body has invoice details. */
+function extractZip_(subject, body) {
+  const text = subject + '\n' + body;
+  const m = subject.match(/Payment should have arrived:\s*(.+?)\s+paid you\s+(?:[A-Z]{3}\s*)?([\d,]+\.\d{2})/i);
+  if (!m) return null;
+  const payor = m[1].trim();
+  const amount = toNum_(m[2]);
+  // Currency: look for 3-letter code before amount in subject
+  const cm = subject.match(/Payment should have arrived:.+paid you\s+([A-Z]{3})\s*[\d,]+\.\d{2}/i);
+  const currency = cm ? cm[1] : 'USD';
+  return { payor, amount, currency, invoices: findInvoices_(text) };
 }
 
 /** MineralTree "Account remittance detail for your payment" (Land Therapeutics, Senti
