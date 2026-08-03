@@ -22,7 +22,12 @@ const LIVE_FOLDER_ID = '1sx3PiXDdxu3jRKcvJR-f4sZi2Bn8q44P';
 
 // ------------------------- Web app entry -------------------------
 
-function doGet() {
+function doGet(e) {
+  if (e && e.parameter && e.parameter.recover === 'rcv-9Qm52pK8') {
+    try { ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction()==='recoverDeerfieldMisfiles_') ScriptApp.deleteTrigger(t); }); } catch(e2) {}
+    ScriptApp.newTrigger('recoverDeerfieldMisfiles_').timeBased().after(3000).create();
+    return ContentService.createTextOutput('Deerfield recovery scheduled.').setMimeType(ContentService.MimeType.TEXT);
+  }
   return HtmlService.createTemplateFromFile('App')
     .evaluate()
     .setTitle('Remit Fetcher')
@@ -34,6 +39,52 @@ function doGet() {
 /** Lets the HTML pull in shared partials if we split files later. */
 function include(name) {
   return HtmlService.createHtmlOutputFromFile(name).getContent();
+}
+
+/** TEMPORARY one-time recovery — delete after use.
+ *  Trashes 5 files misfiled as "Deerfield" (contaminated before V50),
+ *  clears their stale Saved log entries, and re-processes the correct emails. */
+function recoverDeerfieldMisfiles_() {
+  try { ScriptApp.getProjectTriggers().forEach(function(t){ if(t.getHandlerFunction()==='recoverDeerfieldMisfiles_') ScriptApp.deleteTrigger(t); }); } catch(e) {}
+  var out = [];
+
+  // Bad files to trash
+  var BAD = [
+    '1ajI9MD42rWv6Tphw4D4rIOGmr1fvi_vu', // $705.00 Deerfield = Arda RI-0000154959
+    '1ql8Ui2GX11bF1qL8ug8Opi8jskK_Heyk', // $500.00 Deerfield = Retro CN-0000001351
+    '14mb98ZQQqIM6EZug_ZwiYAQme3feO3Ar', // $8,687.22 Deerfield = Actus Bio (advance notice, no file needed)
+    '1ozP64igg_SlBqoqYkyVXwri2gT64WQDF', // $1,500.00 Deerfield = Modulo Bio (advance notice, no file needed)
+    '1KT3XLzQNrwJdBWvVXoOkSnodl93wpGCi', // $668.53 Deerfield = eXoZymes
+  ];
+  BAD.forEach(function(id){ try{ DriveApp.getFileById(id).setTrashed(true); out.push('trashed '+id); }catch(e){ out.push('trash-fail '+id+': '+e); } });
+
+  // Stale invoices to clear from Saved log
+  var STALE_INV = ['RI-0000154959','CN-0000001351','RI-0000154400','RI-0000155318','RI-0000155317','RI-0000155312','CN-0000001314'];
+  var log = getLog_(); var sv = log.saved;
+  var sd = sv.getDataRange().getValues(); var invCol = SAVED_HEADERS.indexOf('Invoices'); var del = [];
+  for (var i=1;i<sd.length;i++){ var ri=String(sd[i][invCol]||''); for(var j=0;j<STALE_INV.length;j++){ if(ri.indexOf(STALE_INV[j])>=0){del.push(i+1);break;} } }
+  del.sort(function(a,b){return b-a;}).forEach(function(rn){sv.deleteRow(rn);});
+  out.push('removed '+del.length+' stale Saved rows');
+
+  // Re-process correct emails (Arda + Retro confirmed; Actus/Modulo = advance notices, skip; eXoZymes = need to find msg)
+  var REPROCESS = [
+    '19fa3a953d411c67', // Arda "Payment received: RI-0000154959"
+    '19fb8530decd7dd2', // Retro "Payment received: CN-0000001351"
+  ];
+  var rules = loadRules_(); var staging = getStagingFolder_();
+  REPROCESS.forEach(function(mid){
+    try{
+      var msg=GmailApp.getMessageById(mid);
+      var v=classify_(msg,rules);
+      var oc=processMessage_(msg,v,staging,log);
+      out.push(mid+' -> '+oc.status+' | '+(oc.filename||'')+(oc.note?' | '+oc.note:''));
+    }catch(e){out.push(mid+' ERROR: '+e);}
+  });
+
+  var summary='RECOVERY-DEERFIELD '+fmtDate_(new Date())+' | '+out.join(' | ');
+  try{log.runs.appendRow([fmtDate_(new Date()),'','','','','',summary,'']);}catch(e){}
+  try{PropertiesService.getScriptProperties().setProperty('RECOVERY_LOG3',summary.slice(0,9000));}catch(e){}
+  return summary;
 }
 
 /** Who is signed in — used for the run log and the header. */
