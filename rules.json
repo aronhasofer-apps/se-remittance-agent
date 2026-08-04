@@ -1,5 +1,5 @@
 {
-  "version": "1.0.30",
+  "version": "1.0.31",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -482,6 +482,29 @@
       },
       "action": "extract_body",
       "short_name": "Neurocrine"
+    },
+    {
+      "id": "ipsen-attachment",
+      "description": "IPSEN payment advice \u2014 'IPSEN-Payment advice' subject, PDF attachment, payor=Ipsen",
+      "match": {
+        "subject_contains": [
+          "IPSEN-Payment advice"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Ipsen"
+    },
+    {
+      "id": "invoice-return-skip",
+      "description": "ERP invoice rejection/return notices \u2014 skip",
+      "match": {
+        "subject_contains": [
+          "Return of Invoice",
+          "Rejected Invoice",
+          "invoice has been rejected"
+        ]
+      },
+      "action": "skip"
     }
   ]
 }
