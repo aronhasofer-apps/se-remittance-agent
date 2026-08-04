@@ -1,13 +1,18 @@
 {
-  "version": "1.0.31",
+  "version": "1.0.32",
   "updated": "2026-07-24",
   "rules": [
     {
       "id": "skip-overdue-invoices",
-      "description": "Overdue-invoice/dunning notice - not a payment",
+      "description": "Overdue-invoice/dunning notice - not a payment (scoped to Ariba/SAP senders only)",
       "match": {
         "subject_contains": [
           "Overdue Invoices"
+        ],
+        "from_contains": [
+          "ariba.com",
+          "sap.com",
+          "supplier.ariba"
         ]
       },
       "action": "skip"
@@ -505,6 +510,22 @@
         ]
       },
       "action": "skip"
+    },
+    {
+      "id": "amgen-wire-confirm",
+      "description": "Amgen P2P helpdesk wire payment confirmation \u2014 body says 'was paid on [date] via Wire payment', extract from body",
+      "match": {
+        "from_contains": [
+          "amgen.com"
+        ],
+        "subject_contains": [
+          "Overdue Invoices",
+          "invoice",
+          "payment"
+        ]
+      },
+      "action": "extract_body",
+      "short_name": "Amgen"
     }
   ]
 }
