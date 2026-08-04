@@ -629,18 +629,22 @@ function extractFromBody_(msg, v) {
   }
 
   // Mismatch guard: if the extracted payor is a well-known SHORT_NAMES entity but their
-  // name doesn't appear anywhere in the subject, the extraction is almost certainly wrong
-  // (threaded body contamination). Flag rather than file silently.
+  // name doesn't appear anywhere in the subject OR the attachment text, the extraction
+  // is almost certainly wrong (threaded body contamination). Flag rather than file.
   const snLower = sn.toLowerCase();
   const subjectLower = subject.toLowerCase();
   const knownPayors = SHORT_NAMES.map(function(e){ return e[1].toLowerCase(); });
   if (knownPayors.indexOf(snLower) >= 0) {
-    // Check if any meaningful word of the payor name appears in the subject.
     const payorInSubject = sn.split(' ').some(function(w){
       return w.length > 3 && subjectLower.indexOf(w.toLowerCase()) >= 0;
     });
-    if (!payorInSubject) {
-      return { ok: false, reason: 'Payor mismatch: extracted "' + sn + '" but "' + sn + '" does not appear in the subject — likely threading contamination, needs human review' };
+    // Also check attachment text (attText) — payor may be in the attachment, not subject
+    const attTextLower = attText.toLowerCase();
+    const payorInAtt = attTextLower && sn.split(' ').some(function(w){
+      return w.length > 3 && attTextLower.indexOf(w.toLowerCase()) >= 0;
+    });
+    if (!payorInSubject && !payorInAtt) {
+      return { ok: false, reason: 'Payor mismatch: extracted "' + sn + '" but "' + sn + '" does not appear in the subject or attachment — likely threading contamination, needs human review' };
     }
   }
 
