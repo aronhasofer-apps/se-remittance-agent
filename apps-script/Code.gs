@@ -1129,6 +1129,7 @@ const SHORT_NAMES = [
   [/bristol[- ]?myers|(^|\W)bms(\W|$)/i, 'BMS'],
   [/mrl san francisco|merck sharp|merck research|(^|\W)merck(\W|$)/i, 'Merck'],
   [/reckitt/i, 'Reckitt'],
+  [/\bipsen\b/i, 'Ipsen'],
   [/insitro/i, 'Insitro'],
   [/rainwater/i, 'Rainwater Charitable Foundation'],
   [/deerfield/i, 'Deerfield'],
