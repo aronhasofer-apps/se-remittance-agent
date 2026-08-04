@@ -1,5 +1,5 @@
 {
-  "version": "1.0.33",
+  "version": "1.0.34",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -513,15 +513,15 @@
     },
     {
       "id": "amgen-wire-confirm",
-      "description": "Amgen P2P helpdesk wire payment confirmation \u2014 body says 'was paid on [date] via Wire payment', extract from body",
+      "description": "Amgen P2P helpdesk wire payment confirmation \u2014 body says 'was paid on [date] via Wire payment'; only fires when body confirms payment",
       "match": {
         "from_contains": [
           "amgen.com"
         ],
-        "subject_contains": [
-          "Overdue Invoices",
-          "invoice",
-          "payment"
+        "snippet_contains": [
+          "was paid",
+          "via Wire payment",
+          "Wire payment"
         ]
       },
       "action": "extract_body",
