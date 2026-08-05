@@ -1,5 +1,5 @@
 {
-  "version": "1.0.34",
+  "version": "1.0.35",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -469,10 +469,11 @@
     },
     {
       "id": "zip-payment-arrived",
-      "description": "Zip payment confirmation \u2014 'Payment should have arrived: X paid you $Y'; payor and amount in subject",
+      "description": "Zip payment confirmation \u2014 'Payment should have arrived: X paid you $Y'; payor and amount in subject | also 'Payment initiated: X paid you'",
       "match": {
         "subject_contains": [
-          "Payment should have arrived:"
+          "Payment should have arrived:",
+          "Payment initiated:"
         ]
       },
       "action": "extract_body"
