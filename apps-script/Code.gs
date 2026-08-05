@@ -583,6 +583,20 @@ function extractFromBody_(msg, v) {
   let text = subject + '\n' + body + '\n' + attText;
   // If nothing that looks like a money amount is present, the advice is likely inside an
   // HTML attachment GmailApp can't see — fetch every part via the Gmail REST API.
+  // DIAGNOSTIC: log body preview for bill/ramp emails to trace contamination
+  const isDiagRule = /^(bill|ramp)/.test(v.ruleObj ? v.ruleObj.id : '');
+  if (isDiagRule) {
+    try {
+      const diagKey = 'DIAG_' + (msg.getId() || '').slice(-8);
+      const diagVal = JSON.stringify({
+        subj: subject.slice(0, 80),
+        bodyLen: body.length,
+        body10: body.slice(0, 120).replace(/\n/g, '|'),
+        hasAmt: /[\d,]{1,12}\.\d{2}/.test(text)
+      });
+      PropertiesService.getScriptProperties().setProperty(diagKey, diagVal);
+    } catch(e) {}
+  }
   if (!/[\d,]{1,12}\.\d{2}/.test(text)) {
     try { text += '\n' + stripHtml_(fetchAllHtmlParts_(msg)); } catch (e) {}
   }
