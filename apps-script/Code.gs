@@ -684,7 +684,9 @@ function extractBill_(subject, body) {
   // threaded HTML from prior emails with different customers.
   let m = subject.match(/payment from\s+(.+?)\s+(?:will be deposited|is on the way|is delayed)/i);
   if (m) {
-    const amt = firstAmount_(body);
+    // Try body first; fall back to full text (which may include HTML parts) for amount.
+    // Payor always comes from subject — immune to body contamination.
+    const amt = firstAmount_(body) || firstAmount_(text);
     if (amt) return { payor: m[1], amount: amt, invoices: findInvoices_(text) };
   }
 
@@ -720,7 +722,12 @@ function extractRamp_(subject, body) {
   // threaded HTML which can contain earlier messages from different customers, causing
   // P1 below to pick up the wrong company name.
   let m = subject.match(/Payment received:\s*((?:RI|CN)-\d+)\s+from\s+(.+)$/i);
-  if (m) { invoices = [m[1].toUpperCase()]; payor = m[2].trim(); }
+  if (m) {
+    invoices = [m[1].toUpperCase()]; payor = m[2].trim();
+    // Get amount from text (body or HTML parts) — payor already locked from subject
+    const amt3 = firstAmount_(body) || firstAmount_(text);
+    if (amt3 && payor) return { payor, amount: amt3, currency: 'USD', invoices };
+  }
 
   // P3b: Subject "Payment initiated for N bills to Y from X" (batch)
   if (!payor) {
