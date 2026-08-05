@@ -113,6 +113,8 @@ function runRemittanceScan() {
     const log = getLog_();
     const seen = getLoggedIds_(log.messages);
     const rules = loadRules_();
+    const rulesVer = rules.version || '0';
+    try { PropertiesService.getScriptProperties().setProperty('LAST_RULES_VERSION', rulesVer); } catch(e) {}
     const staging = getStagingFolder_();
 
     const found = findMessages_().filter(function (it) {
@@ -169,7 +171,7 @@ function runRemittanceScan() {
         v.ruleName,
         outcome.shortName || v.shortName || '',
         outcome.status,
-        outcome.note || '',
+        ((outcome.note || '') + ' [rules:' + rulesVer + ']').trim(),
         msg.getId(),
         mailLink_(msg),
         outcome.amountText || '',
@@ -1444,24 +1446,42 @@ function getLoggedIds_(sheet) {
   const seen = new Set();
   const last = sheet.getLastRow();
   if (last >= 2) {
-    // Col 12 = Message ID, Col 10 = Outcome
+    // Col 10=Outcome, Col 11=Note (contains "[rules:X.Y.Z]"), Col 12=Message ID
     const rows = sheet.getRange(2, 10, last - 1, 3).getValues();
-    // Count how many times each message has been flagged
-    const flagCount = {};
+    // Get the current deployed rules version so we can detect stale flags.
+    let currentRulesVer = '0';
+    try { currentRulesVer = PropertiesService.getScriptProperties().getProperty('LAST_RULES_VERSION') || '0'; } catch(e) {}
+
+    // Track per-message: whether it has a final outcome, and what rules version it last flagged under.
+    const finalOutcome = new Set();   // message IDs with a permanent outcome
+    const lastFlagVer  = {};          // msgId -> rules version when it last flagged
+
     rows.forEach(function (r) {
       const outcome = String(r[0] || '').toUpperCase();
+      const note    = String(r[1] || '');
       const msgId   = String(r[2] || '');
       if (!msgId) return;
       if (outcome === 'FLAGGED') {
-        flagCount[msgId] = (flagCount[msgId] || 0) + 1;
-      } else {
-        // Any final outcome (SAVED, GENERATED, SKIPPED, DUPLICATE) = done
-        seen.add(msgId);
+        // Extract rules version from note, e.g. "[rules:1.0.35]"
+        const vm = note.match(/\[rules:([\d.]+)\]/);
+        lastFlagVer[msgId] = vm ? vm[1] : '0';
+      } else if (outcome) {
+        // SAVED, GENERATED, SKIPPED, DUPLICATE, ALREADY PROCESSED — permanently done
+        finalOutcome.add(msgId);
       }
     });
-    // Allow retry only if flagged fewer than 3 times; after that, treat as done
-    Object.keys(flagCount).forEach(function(id) {
-      if (flagCount[id] >= 5) seen.add(id);
+
+    // Lock out messages with a final outcome
+    finalOutcome.forEach(function(id) { seen.add(id); });
+
+    // Lock out messages whose last flag was under the CURRENT rules version
+    // (meaning the fix hasn't been deployed yet — don't retry endlessly).
+    // If the last flag was under an OLDER version, allow one retry.
+    Object.keys(lastFlagVer).forEach(function(id) {
+      if (!finalOutcome.has(id) && lastFlagVer[id] === currentRulesVer) {
+        seen.add(id);
+      }
+      // else: rules have changed since the flag — allow retry automatically
     });
   }
   return seen;
