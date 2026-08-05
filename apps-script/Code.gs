@@ -1461,7 +1461,7 @@ function getLoggedIds_(sheet) {
     });
     // Allow retry only if flagged fewer than 3 times; after that, treat as done
     Object.keys(flagCount).forEach(function(id) {
-      if (flagCount[id] >= 3) seen.add(id);
+      if (flagCount[id] >= 5) seen.add(id);
     });
   }
   return seen;
