@@ -1,7 +1,19 @@
 {
-  "version": "1.0.35",
+  "version": "1.0.36",
   "updated": "2026-07-24",
   "rules": [
+    {
+      "id": "invoice-dispute-skip",
+      "description": "Invoice dispute/credit note request letters \u2014 not a payment, skip",
+      "match": {
+        "subject_contains": [
+          "Invoice Dispute",
+          "CREDIT NOTE REQUEST",
+          "Dispute Letter"
+        ]
+      },
+      "action": "skip"
+    },
     {
       "id": "skip-overdue-invoices",
       "description": "Overdue-invoice/dunning notice - not a payment (scoped to Ariba/SAP senders only)",
