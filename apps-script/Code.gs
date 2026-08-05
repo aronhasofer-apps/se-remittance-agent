@@ -794,16 +794,15 @@ function extractCoupa_(subject, body, ruleId) {
   return { payor: payor, amount: toNum_(m[2]), currency: m[3], invoices: findInvoices_(text) };
 }
 
-/** Zip "Payment should have arrived: X paid you USD Y" — payor and amount are in the
- *  subject line. Body has invoice details. */
+/** Zip payment notifications — "Payment should have arrived: X paid you USD Y"
+ *  or "Payment initiated: X paid you USD Y" — payor and amount in subject. */
 function extractZip_(subject, body) {
   const text = subject + '\n' + body;
-  const m = subject.match(/Payment should have arrived:\s*(.+?)\s+paid you\s+(?:[A-Z]{3}\s*)?([\d,]+\.\d{2})/i);
+  const m = subject.match(/Payment (?:should have arrived|initiated):\s*(.+?)\s+paid you\s+(?:[A-Z]{3}\s*)?([\d,]+\.\d{2})/i);
   if (!m) return null;
   const payor = m[1].trim();
   const amount = toNum_(m[2]);
-  // Currency: look for 3-letter code before amount in subject
-  const cm = subject.match(/Payment should have arrived:.+paid you\s+([A-Z]{3})\s*[\d,]+\.\d{2}/i);
+  const cm = subject.match(/Payment (?:should have arrived|initiated):.+paid you\s+([A-Z]{3})\s*[\d,]+\.\d{2}/i);
   const currency = cm ? cm[1] : 'USD';
   return { payor, amount, currency, invoices: findInvoices_(text) };
 }
@@ -1116,6 +1115,7 @@ const SHORT_NAMES = [
   [/glaxosmithkline|(^|\W)gsk(\W|$)/i, 'GSK'],
   [/bristol[- ]?myers|(^|\W)bms(\W|$)/i, 'BMS'],
   [/mrl san francisco|merck sharp|merck research|(^|\W)merck(\W|$)/i, 'Merck'],
+  [/neuralink/i, 'Neuralink'],
   [/reckitt/i, 'Reckitt'],
   [/\bipsen\b/i, 'Ipsen'],
   [/insitro/i, 'Insitro'],
