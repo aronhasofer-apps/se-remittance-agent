@@ -1448,40 +1448,49 @@ function getLoggedIds_(sheet) {
   if (last >= 2) {
     // Col 10=Outcome, Col 11=Note (contains "[rules:X.Y.Z]"), Col 12=Message ID
     const rows = sheet.getRange(2, 10, last - 1, 3).getValues();
-    // Get the current deployed rules version so we can detect stale flags.
-    let currentRulesVer = '0';
-    try { currentRulesVer = PropertiesService.getScriptProperties().getProperty('LAST_RULES_VERSION') || '0'; } catch(e) {}
 
-    // Track per-message: whether it has a final outcome, and what rules version it last flagged under.
-    const finalOutcome = new Set();   // message IDs with a permanent outcome
-    const lastFlagVer  = {};          // msgId -> rules version when it last flagged
+    // Current rules version. Use 'INIT' as sentinel so old untagged entries ('0') 
+    // never accidentally match and get permanently locked out.
+    let currentRulesVer = 'INIT';
+    try {
+      const stored = PropertiesService.getScriptProperties().getProperty('LAST_RULES_VERSION');
+      if (stored) currentRulesVer = stored;
+    } catch(e) {}
+
+    // Permanent outcomes — message is fully handled, never retry.
+    // SAVED = real attachment PDF in Drive. SKIPPED = intentional. DUPLICATE = dedup.
+    // ALREADY PROCESSED = msgId dedup. ALREADY APPLIED = manual override.
+    const PERMANENT = { SAVED: 1, SKIPPED: 1, DUPLICATE: 1, 'ALREADY PROCESSED': 1 };
+
+    // Track per message: permanent flag, and what rules version it last flagged/generated under.
+    const finalOutcome = new Set();
+    const lastSoftVer  = {};  // msgId -> rules version of last FLAGGED or GENERATED entry
 
     rows.forEach(function (r) {
-      const outcome = String(r[0] || '').toUpperCase();
+      const outcome = String(r[0] || '').trim().toUpperCase();
       const note    = String(r[1] || '');
       const msgId   = String(r[2] || '');
       if (!msgId) return;
-      if (outcome === 'FLAGGED') {
-        // Extract rules version from note, e.g. "[rules:1.0.35]"
-        const vm = note.match(/\[rules:([\d.]+)\]/);
-        lastFlagVer[msgId] = vm ? vm[1] : '0';
-      } else if (outcome) {
-        // SAVED, GENERATED, SKIPPED, DUPLICATE, ALREADY PROCESSED — permanently done
+
+      if (PERMANENT[outcome]) {
         finalOutcome.add(msgId);
+      } else if (outcome === 'FLAGGED' || outcome === 'GENERATED') {
+        // Soft outcome — version-aware retry. Extract [rules:X.Y.Z] from note.
+        const vm = note.match(/\[rules:([\d.]+)\]/);
+        lastSoftVer[msgId] = vm ? vm[1] : '0';  // '0' = pre-V67, will retry
       }
+      // ALREADY PROCESSED, ERROR, empty — ignore (don't lock, don't track)
     });
 
-    // Lock out messages with a final outcome
+    // Lock out permanent outcomes
     finalOutcome.forEach(function(id) { seen.add(id); });
 
-    // Lock out messages whose last flag was under the CURRENT rules version
-    // (meaning the fix hasn't been deployed yet — don't retry endlessly).
-    // If the last flag was under an OLDER version, allow one retry.
-    Object.keys(lastFlagVer).forEach(function(id) {
-      if (!finalOutcome.has(id) && lastFlagVer[id] === currentRulesVer) {
+    // Lock out soft outcomes only if they were under the CURRENT rules version.
+    // If rules have changed since the flag/generate, allow one automatic retry.
+    Object.keys(lastSoftVer).forEach(function(id) {
+      if (!finalOutcome.has(id) && lastSoftVer[id] === currentRulesVer) {
         seen.add(id);
       }
-      // else: rules have changed since the flag — allow retry automatically
     });
   }
   return seen;
