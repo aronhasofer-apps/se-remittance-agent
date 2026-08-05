@@ -563,6 +563,35 @@ function extractFromBody_(msg, v) {
   const subject = msg.getSubject() || '';
   let body = '';
   try { body = msg.getPlainBody() || ''; } catch (e) {}
+  // If getPlainBody() returned empty (common in trigger context for multipart emails),
+  // extract the plain-text part from the raw MIME. This is reliable across all contexts.
+  if (!body || body.length < 10) {
+    try {
+      const raw = msg.getRawContent();
+      if (raw) {
+        // Find text/plain MIME part
+        const chunks = raw.split(/\r?\n--[^\r\n]+\r?\n/);
+        for (let ci = 0; ci < chunks.length; ci++) {
+          const chunk = chunks[ci];
+          if (!/content-type:\s*text\/plain/i.test(chunk)) continue;
+          const pm = chunk.match(/\r?\n\r?\n([\s\S]*)$/);
+          if (!pm) continue;
+          let part = pm[1];
+          // Handle quoted-printable encoding
+          if (/content-transfer-encoding:\s*quoted-printable/i.test(chunk)) {
+            part = part.replace(/=\r?\n/g, '').replace(/=([0-9A-F]{2})/gi,
+              function(_, h) { return String.fromCharCode(parseInt(h, 16)); });
+          }
+          // Handle base64 encoding
+          if (/content-transfer-encoding:\s*base64/i.test(chunk)) {
+            try { part = Utilities.newBlob(Utilities.base64Decode(part.replace(/\s/g,''))).getDataAsString(); } catch(e2) {}
+          }
+          part = part.trim();
+          if (part.length > 10) { body = part; break; }
+        }
+      }
+    } catch (e) {}
+  }
   // NOTE: We deliberately do NOT fall back to the HTML body (msg.getBody()) here.
   // Gmail's getBody() returns the full threaded HTML — every prior message in the
   // conversation — which causes cross-customer payor/invoice contamination.
@@ -583,20 +612,6 @@ function extractFromBody_(msg, v) {
   let text = subject + '\n' + body + '\n' + attText;
   // If nothing that looks like a money amount is present, the advice is likely inside an
   // HTML attachment GmailApp can't see — fetch every part via the Gmail REST API.
-  // DIAGNOSTIC: log body preview for bill/ramp emails to trace contamination
-  const isDiagRule = /^(bill|ramp)/.test(v.ruleObj ? v.ruleObj.id : '');
-  if (isDiagRule) {
-    try {
-      const diagKey = 'DIAG_' + (msg.getId() || '').slice(-8);
-      const diagVal = JSON.stringify({
-        subj: subject.slice(0, 80),
-        bodyLen: body.length,
-        body10: body.slice(0, 120).replace(/\n/g, '|'),
-        hasAmt: /[\d,]{1,12}\.\d{2}/.test(text)
-      });
-      PropertiesService.getScriptProperties().setProperty(diagKey, diagVal);
-    } catch(e) {}
-  }
   if (!/[\d,]{1,12}\.\d{2}/.test(text)) {
     try { text += '\n' + stripHtml_(fetchAllHtmlParts_(msg)); } catch (e) {}
   }
