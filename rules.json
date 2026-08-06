@@ -1,5 +1,5 @@
 {
-  "version": "1.0.37",
+  "version": "1.0.38",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -274,6 +274,16 @@
       },
       "action": "save_attachment",
       "short_name": "AbbVie"
+    },
+    {
+      "id": "svb-payment-notification-skip",
+      "description": "SVB bank payment notification emails forwarded via remittances group \u2014 bank template, duplicate of direct vendor remittance, skip",
+      "match": {
+        "snippet_contains": [
+          "SVB Payment Notification"
+        ]
+      },
+      "action": "skip"
     },
     {
       "id": "terray-attachment",
