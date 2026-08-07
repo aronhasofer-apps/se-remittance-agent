@@ -1224,8 +1224,22 @@ function reevaluateBacklog() {
   try { const it = staging.getFiles(); while (it.hasNext()) existing[it.next().getName().toLowerCase()] = true; } catch (e) {}
 
   const data = msgs.getRange(2, 1, last - 1, 18).getValues();
+
+  // A message can have several historical rows (repeated FLAGGED/GENERATED entries from
+  // earlier debugging or retries). Without dedup, the time budget gets spent reprocessing
+  // the SAME Gmail message multiple times while later rows never get reached at all.
+  // Keep only the last (most recent) row per message ID; the older rows for that ID are
+  // superseded and skipped outright so the budget goes toward distinct messages.
+  const lastRowForId = {};
+  for (let li = 0; li < data.length; li++) {
+    const mid = data[li][11];
+    if (mid) lastRowForId[mid] = li;
+  }
+
   for (let i = 0; i < data.length; i++) {
     const r = data[i]; const rowNum = i + 2;
+    const msgId = r[11];
+    if (msgId && lastRowForId[msgId] !== i) continue; // superseded by a later row for the same message
     const outcome = String(r[9] || '').toUpperCase();
     const payorRaw = String(r[8] || '').trim();
     const subject = String(r[4] || '');
