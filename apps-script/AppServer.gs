@@ -1280,7 +1280,7 @@ function reevaluateBacklog() {
       msgs.getRange(rowNum, 11).setValue('re-evaluated -> skip (' + (ext.reason || 'policy') + ')');
       out.nowSkipped++; continue;
     }
-    const vq = (ext && ext.ok) ? validateExtraction_(ext, !!ext.sourceBlob) : { ok: false, reason: (ext && ext.reason) || 'extraction failed' };
+    const vq = (ext && ext.ok) ? validateExtraction_(ext, true) : { ok: false, reason: (ext && ext.reason) || 'extraction failed' };
     if (!vq.ok) { if (wasArrivingSkip) msgs.getRange(rowNum, 10).setValue('FLAGGED'); msgs.getRange(rowNum, 11).setValue('re-evaluated (still needs review): ' + vq.reason); out.stillFlagged++; continue; }
 
     const base = buildFilename_(ext, ext.fileExt || 'pdf');
