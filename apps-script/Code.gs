@@ -630,15 +630,14 @@ function extractFromBody_(msg, v) {
   // Plain body is always sufficient; if it's empty the email will flag for review.
 
   // Some remittances (e.g. Regeneron) deliver the full advice as an HTML ATTACHMENT
-  // rather than in the body — pull any HTML attachment text in too.
+  // rather than in the body — pull any HTML attachment text in too. Route through
+  // pickAttachment_ (not a separate getAttachments() call) so this benefits from its
+  // raw-MIME fallback for the same trigger-context empty-attachments quirk.
   let attText = '';
   try {
-    const atts = msg.getAttachments({ includeInlineImages: false, includeAttachments: true });
-    for (let ai = 0; ai < atts.length; ai++) {
-      const a = atts[ai];
-      if (/html/i.test(a.getContentType() || '') || /\.html?$/i.test(a.getName() || '')) {
-        attText += '\n' + stripHtml_(a.getDataAsString());
-      }
+    const htmlAtt = pickAttachment_(msg, false);
+    if (htmlAtt && /html/i.test(htmlAtt.getContentType() || '') || (htmlAtt && /\.html?$/i.test(htmlAtt.getName() || ''))) {
+      attText += '\n' + stripHtml_(htmlAtt.getDataAsString());
     }
   } catch (e) {}
   let text = subject + '\n' + body + '\n' + attText;
@@ -671,10 +670,11 @@ function extractFromBody_(msg, v) {
   if (!r || !r.amount) {
     return { ok: false, reason: 'Amount not found in body — needs human review' };
   }
+  // Invoice numbers are best-effort, not required — confirmed structurally absent from
+  // plain text for some BILL/Zip templates (the numbers exist only in an HTML table).
+  // Payor + amount are already strictly gated (SHORT_NAMES/junk check, mismatch guard,
+  // amount bounds), so an empty invoice list no longer blocks saving.
   const invoices = r.invoices && r.invoices.length ? r.invoices : findInvoices_(text);
-  if (!invoices.length) {
-    return { ok: false, reason: 'No invoice numbers found in body — needs human review' };
-  }
 
   // Payor QA: if the extractor produced a junk/fragment payor (e.g. a marketing
   // subject tail like "... is on the way - get paid instantly"), try to recover a
