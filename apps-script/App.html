@@ -184,9 +184,9 @@
       <h2 class="page-title">Review</h2>
       <div class="page-lede">What the agent pulled from the remittance inbox and filed to the live cash-receipts folder. It processes everything it can on its own &mdash; you only act on what it couldn&rsquo;t place.</div>
       <div class="toolbar">
-        <button class="btn primary" id="revLoad" onclick="loadReview()">Refresh</button>
+        <button class="btn primary" id="revReeval" onclick="reevaluateQueue()" title="Re-runs items already in the log against the current rules — use after a rule change. Start here to clear the queue.">Recheck flagged items</button>
         <button class="btn" id="revRerun" onclick="rerunEngine()" title="Fetches new mail from Gmail and processes anything not yet handled">Check inbox for new mail</button>
-        <button class="btn" id="revReeval" onclick="reevaluateQueue()" title="Re-runs items already in the log against the current rules — use after a rule change">Recheck flagged items</button>
+        <button class="btn" id="revLoad" onclick="loadReview()" title="Redraws this table from the log — does not fetch or reprocess anything">Refresh</button>
         <span class="spacer"></span>
         <span id="revMode" class="sub-cell"></span>
       </div>
