@@ -421,12 +421,44 @@ function pickAttachment_(msg, pdfOnly) {
       const a = atts[i];
       if (/pdf/i.test(a.getContentType() || '') || /\.pdf$/i.test(a.getName() || '')) return a;
     }
-    if (pdfOnly) return null;
-    for (let j = 0; j < atts.length; j++) {
-      const a = atts[j];
-      if (/html/i.test(a.getContentType() || '') || /\.html?$/i.test(a.getName() || '')) return a;
+    if (!pdfOnly) {
+      for (let j = 0; j < atts.length; j++) {
+        const a = atts[j];
+        if (/html/i.test(a.getContentType() || '') || /\.html?$/i.test(a.getName() || '')) return a;
+      }
     }
   } catch (e) {}
+  // getAttachments() has been observed to return empty for a message that DOES have a
+  // real attachment when the trigger-context Gmail API hasn't fully hydrated it (the same
+  // class of quirk documented for getPlainBody() elsewhere in this file). Fall back to
+  // parsing the raw MIME directly and rebuild a real Blob — copyBlob()/getName()/
+  // getContentType()/getDataAsString() all work identically to a normal attachment object,
+  // so this is a transparent drop-in for every caller.
+  try {
+    const raw = msg.getRawContent();
+    if (!raw) return null;
+    const chunks = raw.split(/\r?\n--[^\r\n]+\r?\n/);
+    const wantType = pdfOnly ? /application\/pdf/i : /application\/pdf|text\/html/i;
+    for (let ci = 0; ci < chunks.length; ci++) {
+      const chunk = chunks[ci];
+      const ctMatch = chunk.match(/Content-Type:\s*([^;\r\n]+)/i);
+      if (!ctMatch || !wantType.test(ctMatch[1])) continue;
+      const mimeType = ctMatch[1].trim();
+      const nameMatch = chunk.match(/(?:filename|name)\s*=\s*"?([^"\r\n;]+)"?/i);
+      const filename = nameMatch ? nameMatch[1].trim() : ('attachment.' + (/pdf/i.test(mimeType) ? 'pdf' : 'html'));
+      const bodyMatch = chunk.match(/\r?\n\r?\n([\s\S]*)$/);
+      if (!bodyMatch) continue;
+      let payload = bodyMatch[1];
+      if (/Content-Transfer-Encoding:\s*base64/i.test(chunk)) {
+        try {
+          const bytes = Utilities.base64Decode(payload.replace(/[^A-Za-z0-9+/=]/g, ''));
+          return Utilities.newBlob(bytes, mimeType, filename);
+        } catch (e2) { continue; }
+      }
+      // Non-base64 (rare for PDFs, possible for HTML parts) — use as text directly.
+      return Utilities.newBlob(payload, mimeType, filename);
+    }
+  } catch (e3) {}
   return null;
 }
 
