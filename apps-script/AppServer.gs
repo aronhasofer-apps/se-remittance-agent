@@ -750,6 +750,21 @@ function reconcileLocalAgainst_(githubRules) {
  * local override so the work is never lost.
  */
 function persistRule_(match, action, shortName, descr) {
+  // GUARD — never create a rule keyed on our own group domain. Mail arrives via
+  // remittances@, so that signal matches every email and hijacks the whole inbox.
+  try {
+    var ownDomain = String(CONFIG.GROUP || 'remittances@scienceexchange.com')
+                      .split('@').pop().toLowerCase();
+    var fc = (match && match.from_contains) || [];
+    var bad = fc.some(function (f) {
+      var v = String(f || '').toLowerCase().trim();
+      return v && v.indexOf('@') === -1 && ownDomain.indexOf(v) !== -1;
+    });
+    if (bad) {
+      return { ok: false, error: 'Refused: that rule would key on our own domain (' +
+        ownDomain + ') and match every remittance email. Use a subject keyword instead.' };
+    }
+  } catch (e) {}
   var rule = {
     id: 'rule-' + String(shortName || 'payor').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now(),
     description: descr || ((shortName || 'rule') + ' (approved in app by ' + getActiveUser_() + ')'),
