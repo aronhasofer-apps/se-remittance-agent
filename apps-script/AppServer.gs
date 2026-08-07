@@ -25,16 +25,23 @@ const LIVE_FOLDER_ID = '1sx3PiXDdxu3jRKcvJR-f4sZi2Bn8q44P';
 function doGet(e) {
   if (e && e.parameter && e.parameter.rawPeek === 'rp-4Ks91vT') {
     try {
-      const msg = GmailApp.getMessageById('19fd8a5f8abd086f');
+      const targetId = e.parameter.mid || '19fd8a5f8abd086f';
+      const msg = GmailApp.getMessageById(targetId);
+      const plain = (function(){ try { return msg.getPlainBody() || ''; } catch(x){ return '(error: '+x+')'; } })();
       const raw = msg.getRawContent() || '';
       const heads = raw.split(/\r?\n--[^\r\n]+\r?\n/).map(function(c){
         var h = c.split(/\r?\n\r?\n/)[0];
         return h.slice(0,300);
       });
       return ContentService.createTextOutput(JSON.stringify({
-        len: raw.length,
-        firstChars: raw.slice(0,400),
-        chunkHeaders: heads.slice(0,10)
+        targetId: targetId,
+        getPlainBodyLen: plain.length,
+        getPlainBodyFirst200: plain.slice(0,200),
+        getPlainBodyHasRegeneron: /regeneron/i.test(plain),
+        rawLen: raw.length,
+        rawFirstChars: raw.slice(0,400),
+        chunkHeaders: heads.slice(0,10),
+        rawHasRegeneronAnywhere: /regeneron/i.test(raw)
       }, null, 2)).setMimeType(ContentService.MimeType.JSON);
     } catch (err) {
       return ContentService.createTextOutput('ERROR: ' + err).setMimeType(ContentService.MimeType.TEXT);
