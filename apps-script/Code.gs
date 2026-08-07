@@ -1296,7 +1296,15 @@ function firstAmount_(text) {
   let m = text.match(/\$\s*([\d,]+\.\d{2})/);
   if (m) return toNum_(m[1]);
   m = text.match(/(?:payment of|amount[:\s]+)\s*\$?\s*([\d,]+\.\d{2})/i);
-  return m ? toNum_(m[1]) : null;
+  if (m) return toNum_(m[1]);
+  // Last resort: some remittance PDFs (OCR'd via Drive) render the total with neither a
+  // $ sign nor a recognizable label — e.g. "USD 1,234.56" or a bare total on its own line.
+  // Remittance totals are conventionally the LARGEST properly-formatted figure on the page
+  // (line items are always smaller), so take the max rather than the first match — the
+  // same heuristic already used for MineralTree/Regeneron-style layouts.
+  const nums = (text.match(/\b[\d,]{1,12}\.\d{2}\b/g) || [])
+    .map(toNum_).filter(function (n) { return n > 0 && isFinite(n); });
+  return nums.length ? Math.max.apply(null, nums) : null;
 }
 
 function toNum_(s) { return parseFloat(String(s).replace(/,/g, '')); }
