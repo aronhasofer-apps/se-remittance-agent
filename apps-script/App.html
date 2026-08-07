@@ -427,7 +427,9 @@
     var ruleSignal='subject', ruleValue='';
     if(makeRule){
       var dm=(it.from||'').match(/@([a-z0-9.-]+)/i);
-      if(dm && !/gmail|outlook|yahoo/.test(dm[1])){ ruleSignal='from'; ruleValue=dm[1]; }
+      // Never key a rule on our own group domain — every remittance arrives via
+      // remittances@scienceexchange.com, so it would match the entire inbox.
+      if(dm && !/gmail|outlook|yahoo|scienceexchange/.test(dm[1])){ ruleSignal='from'; ruleValue=dm[1]; }
       else { ruleValue=firstKw(it); }
     }
     var btn=event&&event.target?event.target:null; if(btn){btn.disabled=true;btn.textContent='Working\u2026';}
