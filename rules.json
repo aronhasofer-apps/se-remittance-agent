@@ -1,7 +1,36 @@
 {
-  "version": "1.0.38",
+  "version": "1.0.39",
   "updated": "2026-07-24",
   "rules": [
+    {
+      "id": "newsletter-marketing-skip",
+      "description": "Vendor marketing newsletters that land in the remittance group (Ramp/BILL thought-leadership sends) - not payments, skip",
+      "match": {
+        "subject_contains": [
+          "The data behind the",
+          "The spending data",
+          "the AI number",
+          "thought leadership",
+          "webinar",
+          "join us for"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "vendor-notice-skip",
+      "description": "Vendor administrative notices (address/office moves, banking-detail change announcements, entity name changes) - not payments, skip",
+      "match": {
+        "subject_contains": [
+          "will move to office location",
+          "change of address",
+          "address change notification",
+          "has moved to",
+          "entity name change"
+        ]
+      },
+      "action": "skip"
+    },
     {
       "id": "invoice-dispute-skip",
       "description": "Invoice dispute/credit note request letters \u2014 not a payment, skip",
@@ -297,6 +326,17 @@
       "short_name": "Terray Therapeutics"
     },
     {
+      "id": "zip-payment-arrived",
+      "description": "Zip payment confirmation \u2014 'Payment should have arrived: X paid you $Y'; payor and amount in subject | also 'Payment initiated: X paid you'",
+      "match": {
+        "subject_contains": [
+          "Payment should have arrived:",
+          "Payment initiated:"
+        ]
+      },
+      "action": "extract_body"
+    },
+    {
       "id": "bill-payment-misc",
       "description": "Misc payment notifications (sent you a payment of $X; X paid you USD Y) - extract via BILL body extractor",
       "match": {
@@ -490,17 +530,6 @@
       "action": "skip"
     },
     {
-      "id": "zip-payment-arrived",
-      "description": "Zip payment confirmation \u2014 'Payment should have arrived: X paid you $Y'; payor and amount in subject | also 'Payment initiated: X paid you'",
-      "match": {
-        "subject_contains": [
-          "Payment should have arrived:",
-          "Payment initiated:"
-        ]
-      },
-      "action": "extract_body"
-    },
-    {
       "id": "neurocrine-body",
       "description": "Neurocrine via Coupa - extract from body",
       "match": {
@@ -549,6 +578,20 @@
       },
       "action": "extract_body",
       "short_name": "Amgen"
+    },
+    {
+      "id": "calico-notification",
+      "description": "Calico Life Sciences payment notification - remittance detail in body/attachment",
+      "match": {
+        "subject_contains": [
+          "Payment Notification from Calico"
+        ],
+        "from_contains": [
+          "calicolabs.com"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Calico"
     }
   ]
 }
