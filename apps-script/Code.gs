@@ -1389,9 +1389,37 @@ function loadRules_() {
     const localRaw = props.getProperty('LOCAL_RULES');
     if (localRaw) localList = JSON.parse(localRaw) || [];
   } catch (e) { localList = []; }
+
+  // GUARD — drop self-referential local rules.
+  // Mail reaches us via the remittances@ group, so msg.getFrom() is often OUR OWN
+  // domain. A local rule built from that signal matches EVERY email and force-
+  // overrides both the action and the payor short name for the whole inbox.
+  // Such a rule can never be legitimate: our own domain is the payee, not a payor.
+  const OWN_DOMAIN = String(CONFIG.GROUP || 'remittances@scienceexchange.com')
+                       .split('@').pop().toLowerCase();
+  const droppedLocal = [];
+  localList = localList.filter(function (r) {
+    if (!r || !r.match) { droppedLocal.push((r && r.id) || '(malformed)'); return false; }
+    const froms = r.match.from_contains || [];
+    const subjs = r.match.subject_contains || [];
+    const snips = r.match.snippet_contains || [];
+    // bare domain fragment (no mailbox) that our own domain contains => matches everything
+    const selfMatching = froms.some(function (f) {
+      const v = String(f || '').toLowerCase().trim();
+      return v && v.indexOf('@') === -1 && OWN_DOMAIN.indexOf(v) !== -1;
+    });
+    const noCriteria = !froms.length && !subjs.length && !snips.length;
+    if (selfMatching || noCriteria) { droppedLocal.push(r.id || '(unnamed)'); return false; }
+    return true;
+  });
+  if (droppedLocal.length) {
+    try { props.setProperty('DROPPED_LOCAL_RULES',
+      droppedLocal.join(', ').slice(0, 900)); } catch (e5) {}
+  }
+
   const combined = localList.concat(parsed.rules);
   return { list: combined, version: parsed.version || '?', source: source,
-           localCount: localList.length };
+           localCount: localList.length, droppedLocal: droppedLocal.length };
 }
 
 // ==================== LOG SHEET + STAGING =======================
