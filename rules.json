@@ -1,5 +1,5 @@
 {
-  "version": "1.0.40",
+  "version": "1.0.41",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -117,13 +117,10 @@
     },
     {
       "id": "reckitt",
-      "description": "Reckitt payment advice \u2014 PTP_Remittance@reckitt.com, subject 'Payment Advice Note from DD/MM/YYYY', PDF attachment",
+      "description": "Reckitt payment advice \u2014 PTP_Remittance@reckitt.com, subject 'Payment Advice Note from DD/MM/YYYY', PDF attachment (subject_contains removed - it collided with any other 'Payment Advice Note' sender, e.g. GSK, once the generic catch-all was reordered; Reckitt's sender comes through unrewritten so from_contains alone is safe)",
       "match": {
         "from_contains": [
           "reckitt.com"
-        ],
-        "subject_contains": [
-          "Payment Advice Note"
         ]
       },
       "action": "save_attachment",
