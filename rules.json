@@ -1,5 +1,5 @@
 {
-  "version": "1.0.39",
+  "version": "1.0.40",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -203,19 +203,6 @@
       "action": "flag"
     },
     {
-      "id": "payment-advice-note",
-      "description": "Generic SAP 'Payment Advice Note' remittance (GSK, AbbVie, and other shared-format senders) - payor comes from the PDF, not assumed",
-      "match": {
-        "subject_contains": [
-          "Payment Advice Note",
-          "GlaxoSmithKline"
-        ]
-      },
-      "action": "save_attachment",
-      "short_name": "extract_from_pdf",
-      "notes": "Sender is forwarded via remittances@. Body identifies GSK or Haleon. Check currency."
-    },
-    {
       "id": "amgen-attachment",
       "description": "Amgen Remittance Advice - save PDF attachment",
       "match": {
@@ -377,19 +364,6 @@
       "short_name": "Regeneron"
     },
     {
-      "id": "remittance-advice-attachment",
-      "description": "Generic Remittance Advice with PDF - save attachment",
-      "match": {
-        "subject_contains": [
-          "Remittance Advice",
-          "Remittance Details",
-          "Separate Remittance"
-        ]
-      },
-      "action": "save_attachment",
-      "short_name": "extract_from_pdf"
-    },
-    {
       "id": "ramp-delivered",
       "description": "Ramp payment delivered - extract from body",
       "match": {
@@ -398,7 +372,7 @@
         ]
       },
       "action": "extract_body",
-      "short_name": "extract_from_subject"
+      "short_name": ""
     },
     {
       "id": "ramp-advance-skip",
@@ -432,7 +406,7 @@
         ]
       },
       "action": "extract_body",
-      "short_name": "extract_from_subject"
+      "short_name": ""
     },
     {
       "id": "brex-payment",
@@ -592,6 +566,32 @@
       },
       "action": "save_attachment",
       "short_name": "Calico"
+    },
+    {
+      "id": "payment-advice-note",
+      "description": "Generic SAP 'Payment Advice Note' remittance (GSK, AbbVie, and other shared-format senders) - payor comes from the PDF, not assumed",
+      "match": {
+        "subject_contains": [
+          "Payment Advice Note",
+          "GlaxoSmithKline"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "",
+      "notes": "Sender is forwarded via remittances@. Body identifies GSK or Haleon. Check currency."
+    },
+    {
+      "id": "remittance-advice-attachment",
+      "description": "Generic Remittance Advice with PDF - save attachment",
+      "match": {
+        "subject_contains": [
+          "Remittance Advice",
+          "Remittance Details",
+          "Separate Remittance"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": ""
     }
   ]
 }
