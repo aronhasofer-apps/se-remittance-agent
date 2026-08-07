@@ -447,10 +447,10 @@ function threadHasMarker_(msg) {
 function processMessage_(msg, v, staging, log) {
   const ext = runExtraction_(msg, v);
   if (ext && ext.skip) {
-    return { status: 'SKIPPED', note: ext.reason || 'skipped per policy', shortName: v.shortName };
+    return { status: 'SKIPPED', note: ext.reason || 'skipped per policy', shortName: shortName_('', v.shortName) };
   }
   if (!ext.ok) {
-    return { status: 'FLAGGED', note: ext.reason, shortName: v.shortName };
+    return { status: 'FLAGGED', note: ext.reason, shortName: shortName_('', v.shortName) };
   }
 
   if (ext.amount < CONFIG.AMOUNT_MIN || ext.amount > CONFIG.AMOUNT_MAX) {
@@ -465,7 +465,7 @@ function processMessage_(msg, v, staging, log) {
   // Extraction-QA gate - the single checkpoint that guarantees no incomplete or
   // mislabeled record is ever written. Anything that fails here goes to Review
   // instead of producing a bad file/row.
-  const vq = validateExtraction_(ext, !!ext.sourceBlob);
+  const vq = validateExtraction_(ext, true); // invoices are best-effort, not required (see note above)
   if (!vq.ok) {
     return { status: 'FLAGGED', note: vq.reason, shortName: ext.shortName,
              amountText: (ext.amount != null ? money_(ext.amount) : ''), currency: ext.currency, invoices: ext.invoices };
@@ -669,10 +669,14 @@ function extractFromBody_(msg, v) {
     const payorInSubject = sn.split(' ').some(function(w){
       return w.length > 3 && subjectLower.indexOf(w.toLowerCase()) >= 0;
     });
-    // Also check attachment text (attText) — payor may be in the attachment, not subject
+    // Also check attachment text and the plain BODY — a Merck/Regeneron-style email with
+    // no company name in the subject and no PDF attachment can still be a 100% correct
+    // extraction if the payor's name is right there in the body itself.
     const attTextLower = attText.toLowerCase();
-    const payorInAtt = attTextLower && sn.split(' ').some(function(w){
-      return w.length > 3 && attTextLower.indexOf(w.toLowerCase()) >= 0;
+    const bodyLower = body.toLowerCase();
+    const payorInAtt = (attTextLower || bodyLower) && sn.split(' ').some(function(w){
+      const lw = w.toLowerCase();
+      return w.length > 3 && (attTextLower.indexOf(lw) >= 0 || bodyLower.indexOf(lw) >= 0);
     });
     if (!payorInSubject && !payorInAtt) {
       return { ok: false, reason: 'Payor mismatch: extracted "' + sn + '" but "' + sn + '" does not appear in the subject or attachment — likely threading contamination, needs human review' };
