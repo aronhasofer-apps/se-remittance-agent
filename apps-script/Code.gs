@@ -1397,9 +1397,21 @@ function loadRules_() {
   // Such a rule can never be legitimate: our own domain is the payee, not a payor.
   const OWN_DOMAIN = String(CONFIG.GROUP || 'remittances@scienceexchange.com')
                        .split('@').pop().toLowerCase();
+  // Local rules are a TEMPORARY fallback for when the GitHub write fails. They are only
+  // reconciled away if an identical rule later lands in GitHub — which may never happen.
+  // Expire them after 7 days so nothing can silently override the shared rules forever.
+  const LOCAL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  const nowMs = Date.now();
   const droppedLocal = [];
   localList = localList.filter(function (r) {
     if (!r || !r.match) { droppedLocal.push((r && r.id) || '(malformed)'); return false; }
+    // Expired, or undated (legacy — predates created-stamping, the class that caused the
+    // inbox-wide payor hijack). Either way it must not outlive the shared rules.
+    const createdMs = r.created ? Date.parse(r.created) : NaN;
+    if (!isFinite(createdMs) || (nowMs - createdMs) > LOCAL_TTL_MS) {
+      droppedLocal.push((r.id || '(unnamed)') + (isFinite(createdMs) ? ' [expired]' : ' [undated]'));
+      return false;
+    }
     const froms = r.match.from_contains || [];
     const subjs = r.match.subject_contains || [];
     const snips = r.match.snippet_contains || [];
