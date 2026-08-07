@@ -694,10 +694,24 @@ function extractFromBody_(msg, v) {
   // Mismatch guard: if the extracted payor is a well-known SHORT_NAMES entity but their
   // name doesn't appear anywhere in the subject OR the attachment text, the extraction
   // is almost certainly wrong (threaded body contamination). Flag rather than file.
+  //
+  // Scope: only for rules broad enough to actually collide across payors. The guard's
+  // original purpose was catching a self-referential local rule that hijacked every
+  // email in the inbox (fixed permanently at load time in loadRules_ — see the
+  // OWN_DOMAIN guard there). That class of bug can no longer occur. For a DEDICATED
+  // single-payor rule (subject/sender pattern unique to that one vendor, e.g.
+  // regeneron-body, merck-body), the rule match itself is already strong evidence —
+  // additionally requiring the name to be re-found in body/attachment text only
+  // punishes correct extractions when body/attachment access is flaky, with no
+  // remaining upside. Keep the strict check for the two rules proven broad enough to
+  // genuinely collide, and for the true no-rule-matched fallback.
+  const BROAD_COLLISION_PRONE_RULES = { 'payment-advice-note': 1, 'remittance-advice-attachment': 1 };
+  const ruleIdForGuard = (v && v.ruleObj && v.ruleObj.id) || '';
+  const guardApplies = !ruleIdForGuard || BROAD_COLLISION_PRONE_RULES[ruleIdForGuard];
   const snLower = sn.toLowerCase();
   const subjectLower = subject.toLowerCase();
   const knownPayors = SHORT_NAMES.map(function(e){ return e[1].toLowerCase(); });
-  if (knownPayors.indexOf(snLower) >= 0) {
+  if (guardApplies && knownPayors.indexOf(snLower) >= 0) {
     const payorInSubject = sn.split(' ').some(function(w){
       return w.length > 3 && subjectLower.indexOf(w.toLowerCase()) >= 0;
     });
