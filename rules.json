@@ -1,5 +1,5 @@
 {
-  "version": "1.0.41",
+  "version": "1.0.42",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -481,13 +481,13 @@
     },
     {
       "id": "insitro-attachment",
-      "description": "Insitro ACH Remittance Advice \u2014 payor always Insitro; amount extracted from PDF attachment via body/REST path",
+      "description": "Insitro ACH Remittance Advice \u2014 payor always Insitro; amount read from the real PDF attachment (largest-figure fallback in extractFromAttachment_ already handles the label/value being far apart after OCR)",
       "match": {
         "subject_contains": [
           "Insitro ACH Remittance Advice"
         ]
       },
-      "action": "extract_body",
+      "action": "save_attachment",
       "short_name": "Insitro"
     },
     {
