@@ -22,11 +22,7 @@ const LIVE_FOLDER_ID = '1sx3PiXDdxu3jRKcvJR-f4sZi2Bn8q44P';
 
 // ------------------------- Web app entry -------------------------
 
-function doGet(e) {
-  if (e && e.parameter && e.parameter.installTrig === 'it-7Ymq2Rw') {
-    try { installTrigger(); return ContentService.createTextOutput('Triggers installed.').setMimeType(ContentService.MimeType.TEXT); }
-    catch (err) { return ContentService.createTextOutput('ERROR: ' + err).setMimeType(ContentService.MimeType.TEXT); }
-  }
+function doGet() {
   return HtmlService.createTemplateFromFile('App')
     .evaluate()
     .setTitle('Remit Fetcher')
