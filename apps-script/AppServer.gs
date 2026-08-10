@@ -22,50 +22,7 @@ const LIVE_FOLDER_ID = '1sx3PiXDdxu3jRKcvJR-f4sZi2Bn8q44P';
 
 // ------------------------- Web app entry -------------------------
 
-function doGet(e) {
-  if (e && e.parameter && e.parameter.rawPeek === 'rp-4Ks91vT') {
-    // Write findings into the Runs sheet (readable via Drive) instead of an HTTP
-    // response — the browser tool can't reliably retrieve the response body here.
-    try {
-      const targetId = e.parameter.mid || '19fd8a5f8abd086f';
-      const msg = GmailApp.getMessageById(targetId);
-      const plain = (function(){ try { return msg.getPlainBody() || ''; } catch(x){ return '(error: '+x+')'; } })();
-      let attInfo = 'no-attachment-via-getAttachments';
-      try {
-        const atts = msg.getAttachments({ includeInlineImages: false, includeAttachments: true });
-        attInfo = 'getAttachments()=' + atts.length + ' item(s): ' +
-          atts.map(function(a){ return a.getName()+'/'+a.getContentType()+'/'+a.getBytes().length+'b'; }).join(', ');
-      } catch (ax) { attInfo = 'getAttachments() threw: ' + ax; }
-      let pickResult = 'null';
-      try {
-        const picked = pickAttachment_(msg, false);
-        pickResult = picked ? (picked.getName()+'/'+picked.getContentType()+'/'+picked.getBytes().length+'b') : 'null';
-      } catch (px) { pickResult = 'pickAttachment_ threw: ' + px; }
-      let pdfTextInfo = 'not attempted';
-      try {
-        const picked2 = pickAttachment_(msg, true);
-        if (picked2) {
-          const pres = pdfText_(picked2);
-          pdfTextInfo = 'text-len=' + (pres.text ? pres.text.length : 0) + ' serviceMissing=' + pres.serviceMissing +
-            ' first200=' + (pres.text ? pres.text.slice(0,200).replace(/\n/g,'|') : '(none)');
-        } else { pdfTextInfo = 'pickAttachment_(pdfOnly) returned null'; }
-      } catch (pdx) { pdfTextInfo = 'pdfText_ threw: ' + pdx; }
-      const raw = msg.getRawContent() || '';
-      const summary = 'DIAG[' + targetId + '] plainBodyLen=' + plain.length +
-        ' | attachments: ' + attInfo +
-        ' | pickAttachment_: ' + pickResult +
-        ' | pdfText_: ' + pdfTextInfo +
-        ' | rawLen=' + raw.length;
-      const log = getLog_();
-      log.runs.appendRow([fmtDate_(new Date()), '', '', '', '', '', summary.slice(0,3000), '']);
-    } catch (err) {
-      try {
-        const log2 = getLog_();
-        log2.runs.appendRow([fmtDate_(new Date()), '', '', '', '', '', 'DIAG ERROR: ' + err, '']);
-      } catch (e2) {}
-    }
-    return ContentService.createTextOutput('Diagnostic written to Runs sheet.').setMimeType(ContentService.MimeType.TEXT);
-  }
+function doGet() {
   return HtmlService.createTemplateFromFile('App')
     .evaluate()
     .setTitle('Remit Fetcher')
