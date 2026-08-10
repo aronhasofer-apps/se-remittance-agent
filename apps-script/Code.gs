@@ -1204,6 +1204,7 @@ const SHORT_NAMES = [
   [/bristol[- ]?myers|(^|\W)bms(\W|$)/i, 'BMS'],
   [/mrl san francisco|merck sharp|merck research|(^|\W)merck(\W|$)/i, 'Merck'],
   [/neuralink/i, 'Neuralink'],
+  [/astellas/i, 'Astellas'],
   [/reckitt/i, 'Reckitt'],
   [/\bipsen\b/i, 'Ipsen'],
   [/insitro/i, 'Insitro'],
