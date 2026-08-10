@@ -211,13 +211,20 @@ function installTrigger() {
   removeTrigger();
   ScriptApp.newTrigger('runRemittanceScan')
     .timeBased().everyMinutes(CONFIG.TRIGGER_MINUTES).create();
-  Logger.log('Trigger installed — runRemittanceScan will run every ' + CONFIG.TRIGGER_MINUTES + ' minutes.');
+  // Also auto-recheck anything sitting in the Review queue (FLAGGED/GENERATED) every
+  // 30 minutes, using the same version-aware retry logic Recheck flagged items uses —
+  // so a rule fix clears the backlog automatically instead of waiting on a manual click.
+  ScriptApp.newTrigger('reevaluateBacklog')
+    .timeBased().everyMinutes(30).create();
+  Logger.log('Triggers installed — runRemittanceScan every ' + CONFIG.TRIGGER_MINUTES +
+    ' min, reevaluateBacklog every 30 min.');
 }
 
 function removeTrigger() {
   let n = 0;
   ScriptApp.getProjectTriggers().forEach(function (t) {
-    if (t.getHandlerFunction() === 'runRemittanceScan') { ScriptApp.deleteTrigger(t); n++; }
+    const fn = t.getHandlerFunction();
+    if (fn === 'runRemittanceScan' || fn === 'reevaluateBacklog') { ScriptApp.deleteTrigger(t); n++; }
   });
   Logger.log('Removed ' + n + ' trigger(s).');
 }
