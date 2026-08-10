@@ -1,5 +1,5 @@
 {
-  "version": "1.0.42",
+  "version": "1.0.43",
   "updated": "2026-07-24",
   "rules": [
     {
@@ -563,6 +563,17 @@
       },
       "action": "save_attachment",
       "short_name": "Calico"
+    },
+    {
+      "id": "astellas",
+      "description": "Astellas payment advice \u2014 inquiriesAP@astellas.com, sender-only match (unrewritten sender, reliable) so it never depends on the fragile labeled-field PDF extraction",
+      "match": {
+        "from_contains": [
+          "astellas.com"
+        ]
+      },
+      "action": "save_attachment",
+      "short_name": "Astellas"
     },
     {
       "id": "payment-advice-note",
