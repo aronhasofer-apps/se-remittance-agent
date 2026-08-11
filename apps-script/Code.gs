@@ -1193,7 +1193,13 @@ function resolveFilename_(savedSheet, base, invoices) {
   }
   let candidate = base, n = 1;
   while (index.hasOwnProperty(candidate.toLowerCase())) {
-    if (index[candidate.toLowerCase()] === key && key !== '') {
+    const existingKey = index[candidate.toLowerCase()];
+    // Same invoice list -> definite duplicate. When NEITHER has invoices (Zip and other
+    // no-invoice payors never provide them), the exact same filename — same amount, same
+    // payor — is itself strong enough evidence of a duplicate; without this, a version-aware
+    // retry of an already-correct GENERATED file proliferates a fresh _2/_3 copy every time
+    // rules.json changes, since there's no invoice key to compare against.
+    if (existingKey === key && (key !== '' || existingKey === '')) {
       return { filename: candidate, duplicate: true };
     }
     n++;
