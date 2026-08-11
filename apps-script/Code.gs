@@ -763,10 +763,10 @@ function extractBill_(subject, body) {
   }
 
   // "Ansa Biotechnologies, Inc. Sent a payment of 1772.25" (no $)
-  m = body.match(/([^\r\n]{2,90}?)\s+Sent a payment of\s+\$?([\d,]+\.\d{2})/i);
+  m = body.match(/([^\r\n]{2,90}?)\s+Sent a payment of\s+\$?([\d,]*\.\d{2})/i);
   if (m) return { payor: m[1], amount: toNum_(m[2]), invoices: findInvoices_(text) };
   // "Vedana Therapeutics, Inc. initiated a payment of $584977.80"
-  m = body.match(/([^\r\n]{2,90}?)\s+initiated a payment of\s+\$([\d,]+\.\d{2})/i);
+  m = body.match(/([^\r\n]{2,90}?)\s+initiated a payment of\s+\$([\d,]*\.\d{2})/i);
   if (m) return { payor: m[1], amount: toNum_(m[2]), invoices: findInvoices_(text) };
   // "X sent you a payment arriving Jul 22"
   m = subject.match(/^(.+?)\s+sent you a payment arriving/i);
@@ -775,11 +775,11 @@ function extractBill_(subject, body) {
     if (amt) return { payor: m[1], amount: amt, invoices: findInvoices_(text) };
   }
   // "X sent you a payment of $366.48" (BILL variant that includes "you")
-  m = subject.match(/^(.+?)\s+sent you a payment of\s+\$?([\d,]+\.\d{2})/i)
-     || body.match(/([^\r\n]{2,90}?)\s+sent you a payment of\s+\$?([\d,]+\.\d{2})/i);
+  m = subject.match(/^(.+?)\s+sent you a payment of\s+\$?([\d,]*\.\d{2})/i)
+     || body.match(/([^\r\n]{2,90}?)\s+sent you a payment of\s+\$?([\d,]*\.\d{2})/i);
   if (m) return { payor: m[1], amount: toNum_(m[2]), invoices: findInvoices_(text) };
   // "X paid you USD 10,500.00" / "X paid you $10,500.00" (e.g. "Payment should have arrived: X paid you ...")
-  m = text.match(/([A-Z][A-Za-z0-9&.,'\-\u2019 ]+?)\s+paid you\s+(?:([A-Z]{3})\s+)?\$?([\d,]+\.\d{2})/);
+  m = text.match(/([A-Z][A-Za-z0-9&.,'\-\u2019 ]+?)\s+paid you\s+(?:([A-Z]{3})\s+)?\$?([\d,]*\.\d{2})/);
   if (m) return { payor: m[1], amount: toNum_(m[3]), currency: (m[2] || 'USD'), invoices: findInvoices_(text) };
   return null;
 }
@@ -827,9 +827,9 @@ function extractRamp_(subject, body) {
 
   // Amount: prefer the labeled "Payment amount" field; never the marketing "1.0% fee" line.
   let amt = null;
-  m = body.match(/Payment amount[^\n]*\n?\s*\$?([\d,]+\.\d{2})/i);
+  m = body.match(/Payment amount[^\n]*\n?\s*\$?([\d,]*\.\d{2})/i);
   if (m) amt = toNum_(m[1]);
-  if (!amt) { m = body.match(/Invoice total\s*\n?\s*\$([\d,]+\.\d{2})/i); if (m) amt = toNum_(m[1]); }
+  if (!amt) { m = body.match(/Invoice total\s*\n?\s*\$([\d,]*\.\d{2})/i); if (m) amt = toNum_(m[1]); }
   if (!amt) amt = firstAmount_(body);
 
   if (!payor || !amt) return null;
@@ -845,11 +845,11 @@ function extractBrex_(subject, body) {
   const text = subject + '\n' + body;
   let payor = null, amount = null;
 
-  let m = subject.match(/^(.+?)\s+sent you a payment of\s*\$?\s*([\d,]+\.\d{2})/i);
+  let m = subject.match(/^(.+?)\s+sent you a payment of\s*\$?\s*([\d,]*\.\d{2})/i);
   if (m) { payor = m[1].trim(); amount = toNum_(m[2]); }
 
   if (!payor) { m = body.match(/^(.+?)\s+sent you a payment of/im); if (m) payor = m[1].trim(); }
-  if (!amount) { m = body.match(/Amount:\s*\*{0,2}\s*\$?\s*([\d,]+\.\d{2})/i); if (m) amount = toNum_(m[1]); }
+  if (!amount) { m = body.match(/Amount:\s*\*{0,2}\s*\$?\s*([\d,]*\.\d{2})/i); if (m) amount = toNum_(m[1]); }
   if (!amount) amount = firstAmount_(body);
 
   if (!payor || !amount) return null;
@@ -860,14 +860,14 @@ function extractBrex_(subject, body) {
 function extractMerck_(text) {
   const pm = text.match(/Payor Name:\s*([^\r\n]+)/i);
   let amount = null;
-  let m = text.match(/Payment Amount[:\s]*\$?\s*([\d,]+\.\d{2})/i);
+  let m = text.match(/Payment Amount[:\s]*\$?\s*([\d,]*\.\d{2})/i);
   if (m) amount = toNum_(m[1]);
   // The columnar "PAYMENT REMITTANCE DETAIL" body has no "Payment Amount" label; the
   // remitted total sits in the "Payment#" row (and is the largest USD figure) — never
   // the first invoice line item, which the old fallback wrongly grabbed.
-  if (!amount) { m = text.match(/Payment#[\s\S]{0,150}?([\d,]+\.\d{2})\s*USD/i); if (m) amount = toNum_(m[1]); }
+  if (!amount) { m = text.match(/Payment#[\s\S]{0,150}?([\d,]*\.\d{2})\s*USD/i); if (m) amount = toNum_(m[1]); }
   if (!amount) {
-    var nums = (text.match(/([\d,]+\.\d{2})\s*USD/gi) || []).map(function(s){ return toNum_(s.replace(/\s*USD/i, '')); });
+    var nums = (text.match(/([\d,]*\.\d{2})\s*USD/gi) || []).map(function(s){ return toNum_(s.replace(/\s*USD/i, '')); });
     if (nums.length) amount = Math.max.apply(null, nums);
   }
   if (!amount) return null;
@@ -882,7 +882,7 @@ function extractMerck_(text) {
 /** Coupa portal — "X has sent you a 174,333.91 USD payment" (subject). */
 function extractCoupa_(subject, body, ruleId) {
   const text = subject + '\n' + body;
-  let m = text.match(/(.+?)\s+has sent you a\s+([\d,]+\.\d{2})\s+(USD|GBP|EUR)\s+payment/i);
+  let m = text.match(/(.+?)\s+has sent you a\s+([\d,]*\.\d{2})\s+(USD|GBP|EUR)\s+payment/i);
   if (!m) return null;
   let payor = m[1].replace(/^.*?(?=[A-Z])/, '').trim();
   if (ruleId === 'neurocrine-body' || /neurocrine/i.test(text)) payor = 'Neurocrine';
@@ -893,11 +893,11 @@ function extractCoupa_(subject, body, ruleId) {
  *  or "Payment initiated: X paid you USD Y" — payor and amount in subject. */
 function extractZip_(subject, body) {
   const text = subject + '\n' + body;
-  const m = subject.match(/Payment (?:should have arrived|initiated):\s*(.+?)\s+paid you\s+(?:[A-Z]{3}\s*)?([\d,]+\.\d{2})/i);
+  const m = subject.match(/Payment (?:should have arrived|initiated):\s*(.+?)\s+paid you\s+(?:[A-Z]{3}\s*)?([\d,]*\.\d{2})/i);
   if (!m) return null;
   const payor = m[1].trim();
   const amount = toNum_(m[2]);
-  const cm = subject.match(/Payment (?:should have arrived|initiated):.+paid you\s+([A-Z]{3})\s*[\d,]+\.\d{2}/i);
+  const cm = subject.match(/Payment (?:should have arrived|initiated):.+paid you\s+([A-Z]{3})\s*[\d,]*\.\d{2}/i);
   const currency = cm ? cm[1] : 'USD';
   return { payor, amount, currency, invoices: findInvoices_(text) };
 }
@@ -911,10 +911,10 @@ function extractMineralTree_(text) {
   var pm = text.match(/payment from\s+(.+?)\s+has been processed/i);
   var payor = pm ? pm[1].replace(/,?\s*(?:inc|llc|ltd|corp|corporation|company|co)\.?\s*$/i, '').trim() : '';
   var amount = null;
-  var m = text.match(/ACH\s*Amount\s*(?:USD)?\s*\$?\s*([\d,]+\.\d{2})/i);
+  var m = text.match(/ACH\s*Amount\s*(?:USD)?\s*\$?\s*([\d,]*\.\d{2})/i);
   if (m) amount = toNum_(m[1]);
   if (!amount) {
-    var nums = (text.match(/([\d,]+\.\d{2})/g) || []).map(toNum_).filter(function (n) { return n > 0; });
+    var nums = (text.match(/([\d,]*\.\d{2})/g) || []).map(toNum_).filter(function (n) { return n > 0; });
     if (nums.length) amount = Math.max.apply(null, nums);
   }
   if (!amount) return null;
@@ -938,14 +938,14 @@ function extractAriba_(text) {
   let m = text.match(/\bby\s+(.+?)\s+Amount due/i);
   if (m) payor = m[1].trim();
   let amount = null;
-  m = text.match(/(?:Amount due|Original amount)\s*\$?\s*([\d,]+\.\d{2})/i);
+  m = text.match(/(?:Amount due|Original amount)\s*\$?\s*([\d,]*\.\d{2})/i);
   if (m) amount = toNum_(m[1]);
   if (!amount) {
     const all = (text.match(/[\d,]{1,12}\.\d{2}/g) || []).map(function (x) { return toNum_(x); }).filter(function (n) { return n > 0; });
     if (all.length) amount = Math.max.apply(null, all);
   }
   let currency = 'USD';
-  m = text.match(/(?:Amount due|Original amount)\s*\$?\s*[\d,]+\.\d{2}\s*([A-Z]{3})/i);
+  m = text.match(/(?:Amount due|Original amount)\s*\$?\s*[\d,]*\.\d{2}\s*([A-Z]{3})/i);
   if (m) currency = m[1].toUpperCase();
   return { payor: payor || '', amount: amount, currency: currency, invoices: findInvoices_(text) };
 }
@@ -958,10 +958,10 @@ function extractSVB_(text) {
   let m = text.match(/made by\s+(.+?)\s+to\s+Science Exchange/i);
   if (m) payor = m[1].trim().replace(/[,.]\s*$/, '');
   let amount = null;
-  m = text.match(/Amount:\s*\$?\s*([\d,]+\.\d{2})/i);
+  m = text.match(/Amount:\s*\$?\s*([\d,]*\.\d{2})/i);
   if (m) amount = toNum_(m[1]);
   let currency = 'USD';
-  m = text.match(/Amount:\s*\$?\s*[\d,]+\.\d{2}\s*([A-Z]{3})/i);
+  m = text.match(/Amount:\s*\$?\s*[\d,]*\.\d{2}\s*([A-Z]{3})/i);
   if (m) currency = m[1].toUpperCase();
   const isRange = /(?:RI|CN)-?\d{5,}\s*(?:to|through|thru|–|—)\s*(?:RI|CN)-?\d{5,}/i.test(text);
   const invoices = isRange ? [] : findInvoices_(text);
@@ -973,7 +973,7 @@ function extractRegeneron_(text) {
   let m = text.match(/From Payer[\s:]*([A-Za-z][^\r\n]{1,70})/i);
   if (m) payor = m[1].trim();
   let amount = null;
-  m = text.match(/Payment Amount[\s\S]{0,30}?([\d,]+\.\d{2})/i);
+  m = text.match(/Payment Amount[\s\S]{0,30}?([\d,]*\.\d{2})/i);
   if (m) amount = toNum_(m[1]);
   if (!amount) {
     // Fallback: the payment total is the largest 2-decimal figure in the advice.
@@ -995,10 +995,10 @@ function extractGenericBody_(text) {
   if (m) payor = m[1].trim();
 
   let amount = null;
-  m = text.match(/Payment Amount[:\s]*[£$€]?\s*([\d,]+\.\d{2})/i) ||
-      text.match(/(?:^|\n)\s*AMOUNT[:\s]*[£$€]?\s*([\d,]+\.\d{2})/i) ||
-      text.match(/payment (?:via ACH[^$£€\d]*)?(?:for:?|of)\s*[£$€]\s*([\d,]+\.\d{2})/i) ||
-      text.match(/Total(?:\s+Amount)?[:\s]*[£$€]?\s*([\d,]+\.\d{2})/i);
+  m = text.match(/Payment Amount[:\s]*[£$€]?\s*([\d,]*\.\d{2})/i) ||
+      text.match(/(?:^|\n)\s*AMOUNT[:\s]*[£$€]?\s*([\d,]*\.\d{2})/i) ||
+      text.match(/payment (?:via ACH[^$£€\d]*)?(?:for:?|of)\s*[£$€]\s*([\d,]*\.\d{2})/i) ||
+      text.match(/Total(?:\s+Amount)?[:\s]*[£$€]?\s*([\d,]*\.\d{2})/i);
   if (m) amount = toNum_(m[1]);
 
   if (!amount) return null;
@@ -1047,14 +1047,14 @@ function extractFromAttachment_(msg, v, att) {
   //  3) The largest currency-marked figure; or, if the doc prints bare amounts (BMS), the
   //     largest 2-decimal figure in the document.
   let amount = null, note = '';
-  let m = text.match(/(?:Total\s+)?Amount\s+Paid(?:\s+to\s+Vendor)?[:\s]*[£$€]?\s*([\d,]+\.\d{2})/i);
-  if (!m) m = text.match(/(?:Payment|Net|Total)\s*(?:amount|total|value|paid)?\s*[:\s]\s*[£$€]?\s*([\d,]+\.\d{2})/i);
+  let m = text.match(/(?:Total\s+)?Amount\s+Paid(?:\s+to\s+Vendor)?[:\s]*[£$€]?\s*([\d,]*\.\d{2})/i);
+  if (!m) m = text.match(/(?:Payment|Net|Total)\s*(?:amount|total|value|paid)?\s*[:\s]\s*[£$€]?\s*([\d,]*\.\d{2})/i);
   // SAP / Amgen / J&J advices print the grand total masked as "USD ********48,579.08*"
   // (currency word + asterisk padding), which the labeled patterns above skip over.
-  if (!m) m = text.match(/(?:USD|GBP|EUR)\s*\*{2,}\s*([\d,]+\.\d{2})/i);
+  if (!m) m = text.match(/(?:USD|GBP|EUR)\s*\*{2,}\s*([\d,]*\.\d{2})/i);
   if (m) amount = toNum_(m[1]);
   if (!amount) {
-    let all = (text.match(/[£$€]\s*([\d,]+\.\d{2})/g) || [])
+    let all = (text.match(/[£$€]\s*([\d,]*\.\d{2})/g) || [])
       .map(function (x) { return toNum_(x.replace(/[£$€\s]/g, '')); });
     if (!all.length) {
       all = (text.match(/\b[\d,]{1,12}\.\d{2}\b/g) || []).map(function (x) { return toNum_(x); });
@@ -1347,9 +1347,9 @@ function detectCurrency_(text) {
 }
 
 function firstAmount_(text) {
-  let m = text.match(/\$\s*([\d,]+\.\d{2})/);
+  let m = text.match(/\$\s*([\d,]*\.\d{2})/);
   if (m) return toNum_(m[1]);
-  m = text.match(/(?:payment of|amount[:\s]+)\s*\$?\s*([\d,]+\.\d{2})/i);
+  m = text.match(/(?:payment of|amount[:\s]+)\s*\$?\s*([\d,]*\.\d{2})/i);
   if (m) return toNum_(m[1]);
   // Last resort: some remittance PDFs (OCR'd via Drive) render the total with neither a
   // $ sign nor a recognizable label — e.g. "USD 1,234.56" or a bare total on its own line.
