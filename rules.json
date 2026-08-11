@@ -1,7 +1,20 @@
 {
-  "version": "1.0.43",
+  "version": "1.0.44",
   "updated": "2026-07-24",
   "rules": [
+    {
+      "id": "ramp-account-notice-skip",
+      "description": "Ramp account/security notifications (authenticator added/removed, sign-in alerts) and vendor-portal setup invites \u2014 not payments, skip",
+      "match": {
+        "subject_contains": [
+          "authenticator was removed",
+          "authenticator has been added",
+          "sign-in alert",
+          "complete Vendor Portal setup"
+        ]
+      },
+      "action": "skip"
+    },
     {
       "id": "newsletter-marketing-skip",
       "description": "Vendor marketing newsletters that land in the remittance group (Ramp/BILL thought-leadership sends) - not payments, skip",
