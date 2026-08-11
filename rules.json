@@ -1,7 +1,17 @@
 {
-  "version": "1.0.44",
+  "version": "1.0.45",
   "updated": "2026-07-24",
   "rules": [
+    {
+      "id": "zip-initiated-skip",
+      "description": "Zip advance payment notice \u2014 'Payment initiated: X paid you USD Y' \u2014 advance notice only; the confirmed 'Payment should have arrived' email follows separately for the same transfer",
+      "match": {
+        "subject_contains": [
+          "Payment initiated:"
+        ]
+      },
+      "action": "skip"
+    },
     {
       "id": "ramp-account-notice-skip",
       "description": "Ramp account/security notifications (authenticator added/removed, sign-in alerts) and vendor-portal setup invites \u2014 not payments, skip",
@@ -324,11 +334,10 @@
     },
     {
       "id": "zip-payment-arrived",
-      "description": "Zip payment confirmation \u2014 'Payment should have arrived: X paid you $Y'; payor and amount in subject | also 'Payment initiated: X paid you'",
+      "description": "Zip confirmed payment \u2014 'Payment should have arrived: X paid you USD Y'. The earlier 'Payment initiated:' notice for the same transfer is skipped separately (same advance-notice/confirmation pattern as Ramp/BILL).",
       "match": {
         "subject_contains": [
-          "Payment should have arrived:",
-          "Payment initiated:"
+          "Payment should have arrived:"
         ]
       },
       "action": "extract_body"
