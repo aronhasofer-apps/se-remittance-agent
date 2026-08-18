@@ -1,7 +1,60 @@
 {
-  "version": "1.0.45",
+  "version": "1.0.46",
   "updated": "2026-07-24",
   "rules": [
+    {
+      "id": "ach-fee-notice-skip",
+      "description": "BILL platform-wide ACH fee error/correction notice \u2014 informational, self-resolved, no payment attached, skip",
+      "match": {
+        "subject_contains": [
+          "ACH Payment Fee Error"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "purchase-order-skip",
+      "description": "Purchase order notifications (e.g. AbbVie PO forwards) \u2014 forward-looking commitment doc, not a payment, skip",
+      "match": {
+        "subject_contains": [
+          "Purchase Order Number",
+          "Purchase Order #"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "verify-device-skip",
+      "description": "Account/device verification prompts (Ramp/BILL security emails) \u2014 not a payment, skip",
+      "match": {
+        "subject_contains": [
+          "Verify your device",
+          "Verify your email"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "ramp-marketing-cashback-skip",
+      "description": "Ramp cash-back/promo marketing email \u2014 not a payment, skip",
+      "match": {
+        "subject_contains": [
+          "Get 3% cash back",
+          "cash returns for"
+        ]
+      },
+      "action": "skip"
+    },
+    {
+      "id": "bill-survey-skip",
+      "description": "BILL support survey/feedback request \u2014 not a payment, skip",
+      "match": {
+        "subject_contains": [
+          "How was your support experience"
+        ]
+      },
+      "action": "skip"
+    },
     {
       "id": "zip-initiated-skip",
       "description": "Zip advance payment notice \u2014 'Payment initiated: X paid you USD Y' \u2014 advance notice only; the confirmed 'Payment should have arrived' email follows separately for the same transfer",
@@ -401,7 +454,8 @@
           "is on the way",
           "sent payment for",
           "get paid instantly",
-          "get paid faster"
+          "get paid faster",
+          "sent your payment"
         ]
       },
       "action": "skip"
